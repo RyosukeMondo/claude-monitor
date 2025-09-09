@@ -168,13 +168,21 @@ class LogParser:
     def _compile_patterns(self):
         """Compile common patterns for efficient matching."""
         self._patterns = {
-            'claude_prompt': re.compile(r'^[>\$#]\s*$'),
+            'claude_prompt': re.compile(r'^[>$#]\s*$'),
             'error_message': re.compile(r'(error|Error|ERROR|exception|Exception)', re.IGNORECASE),
             'warning_message': re.compile(r'(warning|Warning|WARNING|warn)', re.IGNORECASE),
             'context_pressure': re.compile(r'(context|memory|limit|full|usage)', re.IGNORECASE),
             'input_prompt': re.compile(r'(\[Y/n\]|\[y/N\]|Press\s+|Enter\s+)', re.IGNORECASE),
-            'command_execution': re.compile(r'^[>\$#]\s+(.+)$'),
+            'command_execution': re.compile(r'^[>$#]\s+(.+)$'),
             'file_path': re.compile(r'(/[^\s]+\.(py|js|ts|md|json|yaml|yml|txt))'),
+            # Session lifecycle markers
+            'session_start_marker': re.compile(r'===\s+Claude Code TCP Bridge Session Started:', re.IGNORECASE),
+            'session_end_marker': re.compile(r'===\s+Claude Code TCP Bridge Session Ended:', re.IGNORECASE),
+            'welcome_banner': re.compile(r'Welcome to Claude Code!', re.IGNORECASE),
+            'tcp_server_started': re.compile(r'TCP server started successfully on port', re.IGNORECASE),
+            'tcp_bridge_active': re.compile(r'Claude Code is now running with TCP bridge active', re.IGNORECASE),
+            # Command acknowledgements
+            'clear_completed': re.compile(r"(you'?ve run the /clear command|terminal is now clear)", re.IGNORECASE),
             'timestamp': re.compile(r'\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}')
         }
         

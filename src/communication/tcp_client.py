@@ -45,7 +45,14 @@ class TCPClient:
         Args:
             config: Configuration dictionary with connection settings
         """
-        self.config = config or self._get_default_config()
+        # Merge provided config with defaults to ensure required keys exist
+        defaults = self._get_default_config()
+        if isinstance(config, dict) and config:
+            merged = defaults.copy()
+            merged.update(config)
+            self.config = merged
+        else:
+            self.config = defaults
         self.logger = get_logger('tcp_client')
         
         # Connection state

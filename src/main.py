@@ -75,6 +75,14 @@ class ClaudeMonitorDaemon:
         self._start_time = datetime.now()
         self._main_thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
+        # Track last detected state and idle phases
+        self._last_detected_state: ClaudeState = ClaudeState.UNKNOWN
+        self._last_idle_clear_at: Optional[float] = None
+        self._last_idle_prompt_at: Optional[float] = None
+        # Bootstrap flag for fresh Claude sessions
+        self._pending_bootstrap: bool = False
+        # Track when /clear completion was observed in logs
+        self._clear_completed_at: Optional[float] = None
         
         # Components
         self._components: Dict[str, Any] = {}
@@ -176,14 +184,156 @@ class ClaudeMonitorDaemon:
             if 'log_parser' in self._components and 'state_detector' in self._components:
                 def on_new_log_line(log_line):
                     try:
+                        # Detect fresh session start markers from the Claude bridge / banner
+                        try:
+                            meta = getattr(log_line, 'metadata', {}) or {}
+                            # Mark clear completion when the bridge/Claude acknowledges it
+                            if meta.get('clear_completed'):
+                                self._clear_completed_at = time.time()
+                                self.logger.info("Detected /clear completion in logs; enabling prompt phase")
+                            if any(meta.get(k) for k in (
+                                'session_start_marker',
+                                'welcome_banner',
+                                'tcp_server_started',
+                                'tcp_bridge_active'
+                            )) and not self._pending_bootstrap:
+                                # Schedule a bootstrap: clear on first IDLE, then prompt on next IDLE
+                                self._pending_bootstrap = True
+                                # Reset idle phase tracking so we ensure clear runs on the very next IDLE
+                                self._last_detected_state = ClaudeState.UNKNOWN
+                                self._last_idle_clear_at = None
+                                self._last_idle_prompt_at = None
+                                self._clear_completed_at = None
+                                self.logger.info("Fresh Claude session detected via logs; bootstrap scheduled (clear then prompt)")
+                                # Additionally, try immediate /clear via recovery engine (no need to wait for IDLE)
+                                if 'recovery_engine' in self._components:
+                                    try:
+                                        recovery_engine = self._components['recovery_engine']
+                                        from detection.state_detector import StateDetection
+                                        fake_detection = StateDetection(
+                                            state=ClaudeState.IDLE,
+                                            confidence=1.0,
+                                            evidence=["bootstrap_session_start"],
+                                            timestamp=datetime.now(),
+                                            triggering_lines=[],
+                                            metadata={}
+                                        )
+                                        immediate_ctx = {
+                                            'should_send_idle_clear': True,
+                                            'bootstrap': True,
+                                            'reason': 'fresh_session_start'
+                                        }
+                                        self.logger.info("Attempting immediate bootstrap clear (/clear) after session start marker")
+                                        execn = recovery_engine.execute_recovery(fake_detection, immediate_ctx)
+                                        if execn:
+                                            self._stats['total_recoveries'] += 1
+                                            self._last_idle_clear_at = time.time()
+                                            self.logger.info("Immediate bootstrap clear dispatched")
+                                    except Exception as e:
+                                        self.logger.error(f"Immediate bootstrap clear failed to dispatch: {e}")
+                        except Exception as marker_err:
+                            self.logger.debug(f"Session marker check error: {marker_err}")
+
                         # Get context from log parser and run state detection
                         context = self._components['log_parser'].get_context()
                         detection = self._components['state_detector'].detect_state(context)
                         
                         if detection and detection.confidence >= self._components['state_detector'].config.get('min_confidence', 0.6):
-                            self.logger.info(f"State detected: {detection.state} (confidence: {detection.confidence:.2f})")
-                            # This will be handled by the state detector callback if it exists
-                            
+                            self.logger.info(
+                                f"State detected: {detection.state} (confidence: {detection.confidence:.2f}) | "
+                                f"last_state={self._last_detected_state}, pending_bootstrap={self._pending_bootstrap}, "
+                                f"last_clear_at={self._last_idle_clear_at}, last_prompt_at={self._last_idle_prompt_at}"
+                            )
+
+                            # Trigger recovery decisions here (since StateDetector doesn't expose callbacks)
+                            if 'recovery_engine' in self._components:
+                                recovery_engine = self._components['recovery_engine']
+
+                                # Prepare common recovery context
+                                recovery_context = {
+                                    'detection_confidence': detection.confidence,
+                                    'detection_evidence': detection.evidence,
+                                    'timestamp': detection.timestamp,
+                                }
+
+                                # Only trigger recovery for problematic states or for idle prompt
+                                recovery_states = {
+                                    ClaudeState.CONTEXT_PRESSURE,
+                                    ClaudeState.INPUT_WAITING,
+                                    ClaudeState.ERROR,
+                                }
+
+                                # Handle IDLE in two phases: first /clear on transition, then prompt on next idle
+                                if detection.state == ClaudeState.IDLE:
+                                    # Read overrides from env or config
+                                    current_project = os.environ.get('CLAUDE_MONITOR_PROJECT_PATH') or \
+                                                     self.config.get('monitoring', {}).get('project_path', '')
+                                    current_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                                  self.config.get('monitoring', {}).get('spec_name', '')
+
+                                    now_ts = time.time()
+                                    # Phase 1: if we just transitioned into IDLE, send /clear once
+                                    if self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap:
+                                        clear_context = dict(recovery_context)
+                                        clear_context.update({
+                                            'should_send_idle_clear': True
+                                        })
+                                        self.logger.info("Decision: sending idle clear (/clear)")
+                                        execution = recovery_engine.execute_recovery(detection, clear_context)
+                                        if execution:
+                                            self._stats['total_recoveries'] += 1
+                                            self._last_idle_clear_at = now_ts
+                                            self.logger.info("Idle clear sent via recovery engine (/clear)")
+                                        else:
+                                            self.logger.info("Decision: not sending clear yet")
+                                    else:
+                                        # Phase 2: subsequent IDLE detections after clear -> send prompt
+                                        should_send_prompt = True
+                                        # Avoid spamming: send only if no prompt recently and clear was sent
+                                        if self._last_idle_prompt_at and (now_ts - self._last_idle_prompt_at) < recovery_engine.config.get('cooldown_period', 10.0):
+                                            should_send_prompt = False
+                                        # Give a brief moment after clear; alternatively, require clear completion marker
+                                        if self._last_idle_clear_at and (now_ts - self._last_idle_clear_at) < 1.0:
+                                            # give a brief moment after clear
+                                            should_send_prompt = False
+                                        # If we are in bootstrap flow, require that we observed clear completion before prompting
+                                        if self._pending_bootstrap and not self._clear_completed_at:
+                                            should_send_prompt = False
+
+                                        if should_send_prompt:
+                                            prompt_spec = current_spec or 'unknown'
+                                            idle_prompt = (
+                                                f"Please work on remaining tasks for spec \"{prompt_spec}\", "
+                                                f"make commits after every task completion, then proceed till the last task completed."
+                                            )
+                                            prompt_context = dict(recovery_context)
+                                            prompt_context.update({
+                                                'should_send_idle_prompt': True,
+                                                'idle_prompt_text': idle_prompt,
+                                                'context_spec': current_spec,
+                                                'context_project': current_project,
+                                            })
+                                            self.logger.info("Decision: sending idle prompt")
+                                            execution = recovery_engine.execute_recovery(detection, prompt_context)
+                                            if execution:
+                                                self._stats['total_recoveries'] += 1
+                                                self._last_idle_prompt_at = now_ts
+                                                self.logger.info("Idle prompt sent via recovery engine")
+                                                # Bootstrap complete once prompt is sent
+                                                if self._pending_bootstrap:
+                                                    self._pending_bootstrap = False
+                                        else:
+                                            self.logger.info("Decision: not sending prompt yet (cooldown or just cleared)")
+
+                                elif detection.state in recovery_states:
+                                    execution = recovery_engine.execute_recovery(detection, recovery_context)
+                                    if execution:
+                                        self._stats['total_recoveries'] += 1
+                                        self.logger.info(f"Recovery initiated for state: {detection.state}")
+
+                            # Update last detected state for next cycle decisions
+                            self._last_detected_state = detection.state
+                        
                     except Exception as e:
                         self.logger.error(f"Error processing log line in state detector: {e}")
                 
