@@ -1,0 +1,30 @@
+{
+  "monitoring": {
+    "idle_timeout": 30,
+    "input_timeout": 5,
+    "context_pressure_timeout": 10,
+    "task_check_interval": 30,
+    "completion_cooldown": 60
+  },
+  "recovery": {
+    "max_retries": 3,
+    "retry_backoff": 2.0,
+    "compact_timeout": 30
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "/tmp/claude-monitor.log",
+    "console": true,
+    "max_size_mb": 100
+  },
+  "notifications": {
+    "desktop": true,
+    "log_actions": true,
+    "rate_limit_seconds": 60
+  },
+  "tcp": {
+    "host": "localhost",
+    "port": 9999,
+    "connection_timeout": 5
+  }
+}

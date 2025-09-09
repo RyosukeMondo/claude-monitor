@@ -1,0 +1,104 @@
+# Claude Auto-Recovery System Configuration
+# YAML format with comprehensive parameter documentation
+
+# Monitoring Configuration
+# Controls how the system detects different Claude Code execution states
+monitoring:
+  # Idle timeout: How long to wait (in seconds) before considering Claude idle
+  # Range: 10-300 seconds, Default: 30
+  # Lower values = more responsive but may trigger false positives
+  idle_timeout: 30
+  
+  # Input timeout: How long to wait for user input before recovery action
+  # Range: 5-60 seconds, Default: 5
+  # Should be shorter than idle_timeout to catch input prompts quickly
+  input_timeout: 5
+  
+  # Context pressure timeout: How long to wait before context management
+  # Range: 5-60 seconds, Default: 10
+  # Time to wait before executing /compact when context pressure detected
+  context_pressure_timeout: 10
+  
+  # Task check interval: How often to query spec-workflow for task status
+  # Range: 10-300 seconds, Default: 30
+  # Balance between responsiveness and system load
+  task_check_interval: 30
+  
+  # Completion cooldown: Wait time before terminating monitoring after completion
+  # Range: 30-600 seconds, Default: 60
+  # Prevents premature termination if new tasks are added quickly
+  completion_cooldown: 60
+
+# Recovery Configuration  
+# Controls automatic recovery actions and retry behavior
+recovery:
+  # Maximum number of retry attempts for recovery actions
+  # Range: 1-10, Default: 3
+  # Higher values increase resilience but may delay error reporting
+  max_retries: 3
+  
+  # Retry backoff multiplier for exponential backoff
+  # Range: 1.0-10.0, Default: 2.0
+  # Time between retries = base_delay * (retry_backoff ^ attempt_number)
+  retry_backoff: 2.0
+  
+  # Timeout for /compact command execution
+  # Range: 10-120 seconds, Default: 30
+  # How long to wait for context compaction to complete
+  compact_timeout: 30
+
+# Logging Configuration
+# Controls system logging behavior and output destinations
+logging:
+  # Log level: Controls verbosity of log messages
+  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  # Default: INFO (recommended for normal operation)
+  level: INFO
+  
+  # Log file path: Where to write log messages
+  # Default: /tmp/claude-monitor.log
+  # Ensure the directory is writable by the user running the service
+  file: /tmp/claude-monitor.log
+  
+  # Console logging: Whether to also output logs to console/stdout
+  # Default: true (useful for debugging and systemd journal integration)
+  console: true
+  
+  # Maximum log file size before rotation (in MB)
+  # Range: 1-1000 MB, Default: 100
+  # Log files are rotated automatically to prevent disk space issues
+  max_size_mb: 100
+
+# Notification Configuration
+# Controls user notification behavior and rate limiting
+notifications:
+  # Desktop notifications: Enable desktop notification popups
+  # Default: true (requires notify-send or equivalent on the system)
+  desktop: true
+  
+  # Log actions: Whether to log recovery actions to the log file
+  # Default: true (recommended for audit trail and troubleshooting)
+  log_actions: true
+  
+  # Rate limit: Minimum seconds between similar notifications
+  # Range: 10-3600 seconds, Default: 60
+  # Prevents notification spam during rapid state changes
+  rate_limit_seconds: 60
+
+# TCP Communication Configuration
+# Controls connection to Claude Code expect bridge
+tcp:
+  # Host: TCP server hostname or IP address
+  # Default: localhost (for security, only allow local connections)
+  # Should match the expect bridge configuration
+  host: localhost
+  
+  # Port: TCP server port number
+  # Range: 1-65535, Default: 9999
+  # Should match the expect bridge port configuration
+  port: 9999
+  
+  # Connection timeout: Maximum time to wait for TCP connection
+  # Range: 1-60 seconds, Default: 5
+  # How long to wait when establishing connection to Claude Code
+  connection_timeout: 5
