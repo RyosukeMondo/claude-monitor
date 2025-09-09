@@ -83,6 +83,11 @@ class ClaudeMonitorDaemon:
         self._pending_bootstrap: bool = False
         # Track when /clear completion was observed in logs
         self._clear_completed_at: Optional[float] = None
+        # Track bootstrap clear phase to avoid repeated /clear
+        self._bootstrap_cleared: bool = False
+        # Per-state recovery throttling (seconds)
+        self._last_recovery_by_state: Dict[str, float] = {}
+        self._min_recovery_interval_sec: float = 2.0
         
         # Components
         self._components: Dict[str, Any] = {}
@@ -153,6 +158,114 @@ class ClaudeMonitorDaemon:
                     component_configs.get('recovery_engine', {})
                 )
                 self.logger.info("Recovery engine initialized")
+                # Optionally attempt to connect to TCP bridge at startup for early detection of connectivity issues
+                try:
+                    connect_on_start = bool(
+                        self.config.get('monitoring', {}).get('connect_bridge_on_start', True)
+                    )
+                except Exception:
+                    connect_on_start = True
+                if connect_on_start:
+                    try:
+                        ok = self._components['recovery_engine'].tcp_client.connect()
+                        if ok:
+                            self.logger.info("TCP bridge preflight connection successful")
+                            # If we start tailing from end, we might miss prior session markers.
+                            # Proactively schedule a delayed /clear once on preflight success if not already pending.
+                            try:
+                                read_from_end = bool(
+                                    self.config.get('components', {}).get('log_parser', {}).get('monitoring', {}).get('read_from_end', True)
+                                )
+                            except Exception:
+                                read_from_end = True
+                            if read_from_end and not self._pending_bootstrap and not self._last_idle_clear_at:
+                                self._pending_bootstrap = True
+                                self._bootstrap_cleared = False
+                                self._clear_completed_at = None
+                                self._last_idle_prompt_at = None
+                                # Schedule delayed clear just like session marker path
+                                recovery_engine = self._components['recovery_engine']
+                                from detection.state_detector import StateDetection
+                                fake_detection = StateDetection(
+                                    state=ClaudeState.IDLE,
+                                    confidence=1.0,
+                                    evidence=["bootstrap_preflight_connect"],
+                                    timestamp=datetime.now(),
+                                    triggering_lines=[],
+                                    metadata={}
+                                )
+                                try:
+                                    try:
+                                        delay_sec = float(os.environ.get('CLAUDE_MONITOR_BOOTSTRAP_CLEAR_DELAY_SEC') or \
+                                                          self.config.get('monitoring', {}).get('bootstrap_clear_delay_sec', 5.0))
+                                    except Exception:
+                                        delay_sec = 5.0
+                                    self.logger.info(f"Preflight: scheduling bootstrap clear (/clear) in {delay_sec:.1f}s")
+                                    def _delayed_clear_preflight():
+                                        try:
+                                            time.sleep(delay_sec)
+                                            if not self._pending_bootstrap or self._bootstrap_cleared:
+                                                self.logger.info("Preflight: skipping delayed clear (bootstrap no longer pending or already cleared)")
+                                                return
+                                            ctx = {
+                                                'should_send_idle_clear': True,
+                                                'bootstrap': True,
+                                                'reason': 'preflight_connect_delayed'
+                                            }
+                                            t0 = time.time()
+                                            self.logger.info("Preflight: dispatching delayed bootstrap clear (/clear) now")
+                                            execn_inner = recovery_engine.execute_recovery(fake_detection, ctx)
+                                            if execn_inner:
+                                                self._stats['total_recoveries'] += 1
+                                                self._last_idle_clear_at = t0
+                                                self.logger.info("Preflight: delayed bootstrap clear dispatched")
+                                                # Schedule fallback prompt if completion inference isn't observed soon
+                                                try:
+                                                    try:
+                                                        prompt_delay = float(self.config.get('monitoring', {}).get('bootstrap_prompt_delay_sec', 2.0))
+                                                    except Exception:
+                                                        prompt_delay = 2.0
+                                                    def _fallback_prompt_preflight():
+                                                        try:
+                                                            time.sleep(prompt_delay)
+                                                            if not self._pending_bootstrap or self._bootstrap_cleared:
+                                                                return
+                                                            prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                                                          self.config.get('monitoring', {}).get('spec_name', '')
+                                                            idle_prompt = (
+                                                                f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
+                                                                f"make commits after every task completion, then proceed till the last task completed."
+                                                            )
+                                                            prompt_ctx = {
+                                                                'should_send_idle_prompt': True,
+                                                                'idle_prompt_text': idle_prompt,
+                                                                'bootstrap': True,
+                                                                'reason': 'fallback_after_clear_preflight'
+                                                            }
+                                                            self.logger.info("Preflight: fallback dispatching idle prompt after clear delay")
+                                                            execn_prompt = recovery_engine.execute_recovery(fake_detection, prompt_ctx)
+                                                            if execn_prompt:
+                                                                self._stats['total_recoveries'] += 1
+                                                                self._last_idle_prompt_at = time.time()
+                                                                self._pending_bootstrap = False
+                                                                self._bootstrap_cleared = False
+                                                                self.logger.info("Preflight: fallback idle prompt dispatched")
+                                                        except Exception as e:
+                                                            self.logger.error(f"Preflight: fallback prompt dispatch error: {e}")
+                                                    threading.Thread(target=_fallback_prompt_preflight, name="BootstrapPromptFallbackPreflight", daemon=True).start()
+                                                except Exception as e:
+                                                    self.logger.error(f"Preflight: failed to schedule fallback prompt: {e}")
+                                            else:
+                                                self.logger.warning("Preflight: delayed bootstrap clear not dispatched (engine returned None)")
+                                        except Exception as e:
+                                            self.logger.error(f"Preflight: delayed bootstrap clear failed to dispatch: {e}")
+                                    threading.Thread(target=_delayed_clear_preflight, name="BootstrapClearPreflightDelay", daemon=True).start()
+                                except Exception as e:
+                                    self.logger.error(f"Preflight: failed to schedule delayed bootstrap clear: {e}")
+                        else:
+                            self.logger.warning("TCP bridge preflight connection failed; will retry on demand")
+                    except Exception as e:
+                        self.logger.warning(f"TCP bridge preflight connection error: {e}")
             
             # 4. Task monitor - integrates with spec-workflow
             if component_configs.get('task_monitor', {}).get('enabled', True):
@@ -190,7 +303,123 @@ class ClaudeMonitorDaemon:
                             # Mark clear completion when the bridge/Claude acknowledges it
                             if meta.get('clear_completed'):
                                 self._clear_completed_at = time.time()
+                                self._bootstrap_cleared = True
                                 self.logger.info("Detected /clear completion in logs; enabling prompt phase")
+                                # If we are in bootstrap flow, trigger prompt immediately
+                                if self._pending_bootstrap and 'recovery_engine' in self._components:
+                                    try:
+                                        recovery_engine = self._components['recovery_engine']
+                                        from detection.state_detector import StateDetection
+                                        fake_detection = StateDetection(
+                                            state=ClaudeState.IDLE,
+                                            confidence=1.0,
+                                            evidence=["bootstrap_clear_completed"],
+                                            timestamp=datetime.now(),
+                                            triggering_lines=[],
+                                            metadata={}
+                                        )
+                                        # Determine post-clear prompt delay
+                                        try:
+                                            post_delay = float(os.environ.get('CLAUDE_MONITOR_POST_CLEAR_PROMPT_DELAY_SEC') or \
+                                                              self.config.get('monitoring', {}).get('post_clear_prompt_min_delay_sec', 5.0))
+                                        except Exception:
+                                            post_delay = 5.0
+                                        self.logger.info(f"Scheduling bootstrap idle prompt in {post_delay:.1f}s after clear completion")
+                                        def _delayed_prompt_after_clear():
+                                            try:
+                                                time.sleep(post_delay)
+                                                if not self._pending_bootstrap:
+                                                    return
+                                                prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                                              self.config.get('monitoring', {}).get('spec_name', '')
+                                                idle_prompt = (
+                                                    f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
+                                                    f"make commits after every task completion, then proceed till the last task completed."
+                                                )
+                                                prompt_ctx = {
+                                                    'should_send_idle_prompt': True,
+                                                    'idle_prompt_text': idle_prompt,
+                                                    'bootstrap': True,
+                                                    'reason': 'clear_completed_delayed'
+                                                }
+                                                self.logger.info("Dispatching bootstrap idle prompt after post-clear delay")
+                                                execn = recovery_engine.execute_recovery(fake_detection, prompt_ctx)
+                                                if execn:
+                                                    self._stats['total_recoveries'] += 1
+                                                    self._last_idle_prompt_at = time.time()
+                                                    self._pending_bootstrap = False
+                                                    self._bootstrap_cleared = False
+                                                    self.logger.info("Bootstrap idle prompt dispatched (delayed)")
+                                            except Exception as e:
+                                                self.logger.error(f"Delayed bootstrap prompt failed to dispatch: {e}")
+                                        threading.Thread(target=_delayed_prompt_after_clear, name="BootstrapPromptAfterClear", daemon=True).start()
+                                    except Exception as e:
+                                        self.logger.error(f"Scheduling delayed bootstrap prompt failed: {e}")
+                            # Some Claude builds do not emit an explicit clear-completed message; infer completion
+                            # if we see the welcome banner, a clean prompt, a '/clear' echo, or '(no content)'
+                            # shortly after we sent /clear.
+                            elif self._pending_bootstrap and (
+                                meta.get('welcome_banner') or meta.get('claude_prompt') or
+                                meta.get('clear_no_content') or meta.get('clear_command_echo')
+                            ):
+                                try:
+                                    now_ts = time.time()
+                                    # Consider it completion if observed within a short window after clear
+                                    if self._last_idle_clear_at and (now_ts - self._last_idle_clear_at) < 5.0:
+                                        self._clear_completed_at = now_ts
+                                        self._bootstrap_cleared = True
+                                        self.logger.info("Inferred /clear completion from banner/prompt after dispatch; enabling prompt phase")
+                                        # Schedule delayed prompt after inference as well
+                                        if 'recovery_engine' in self._components:
+                                            recovery_engine = self._components['recovery_engine']
+                                            from detection.state_detector import StateDetection
+                                            fake_detection = StateDetection(
+                                                state=ClaudeState.IDLE,
+                                                confidence=1.0,
+                                                evidence=["bootstrap_clear_inferred"],
+                                                timestamp=datetime.now(),
+                                                triggering_lines=[],
+                                                metadata={}
+                                            )
+                                            try:
+                                                try:
+                                                    post_delay = float(os.environ.get('CLAUDE_MONITOR_POST_CLEAR_PROMPT_DELAY_SEC') or \
+                                                                      self.config.get('monitoring', {}).get('post_clear_prompt_min_delay_sec', 5.0))
+                                                except Exception:
+                                                    post_delay = 5.0
+                                                self.logger.info(f"Scheduling bootstrap idle prompt in {post_delay:.1f}s after inferred clear completion")
+                                                def _delayed_prompt_after_inferred():
+                                                    try:
+                                                        time.sleep(post_delay)
+                                                        if not self._pending_bootstrap:
+                                                            return
+                                                        prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                                                      self.config.get('monitoring', {}).get('spec_name', '')
+                                                        idle_prompt = (
+                                                            f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
+                                                            f"make commits after every task completion, then proceed till the last task completed."
+                                                        )
+                                                        prompt_ctx = {
+                                                            'should_send_idle_prompt': True,
+                                                            'idle_prompt_text': idle_prompt,
+                                                            'bootstrap': True,
+                                                            'reason': 'clear_inferred_delayed'
+                                                        }
+                                                        self.logger.info("Dispatching bootstrap idle prompt after inferred clear delay")
+                                                        execn = recovery_engine.execute_recovery(fake_detection, prompt_ctx)
+                                                        if execn:
+                                                            self._stats['total_recoveries'] += 1
+                                                            self._last_idle_prompt_at = time.time()
+                                                            self._pending_bootstrap = False
+                                                            self._bootstrap_cleared = False
+                                                            self.logger.info("Bootstrap idle prompt dispatched (delayed, inferred)")
+                                                    except Exception as e:
+                                                        self.logger.error(f"Delayed bootstrap prompt (inferred) failed to dispatch: {e}")
+                                                threading.Thread(target=_delayed_prompt_after_inferred, name="BootstrapPromptAfterClearInferred", daemon=True).start()
+                                            except Exception as e:
+                                                self.logger.error(f"Scheduling delayed bootstrap prompt (inferred) failed: {e}")
+                                except Exception as e:
+                                    self.logger.error(f"Inferred bootstrap prompt failed to dispatch: {e}")
                             if any(meta.get(k) for k in (
                                 'session_start_marker',
                                 'welcome_banner',
@@ -204,8 +433,9 @@ class ClaudeMonitorDaemon:
                                 self._last_idle_clear_at = None
                                 self._last_idle_prompt_at = None
                                 self._clear_completed_at = None
+                                self._bootstrap_cleared = False
                                 self.logger.info("Fresh Claude session detected via logs; bootstrap scheduled (clear then prompt)")
-                                # Additionally, try immediate /clear via recovery engine (no need to wait for IDLE)
+                                # Schedule delayed /clear to avoid racing welcome banner initialization
                                 if 'recovery_engine' in self._components:
                                     try:
                                         recovery_engine = self._components['recovery_engine']
@@ -218,19 +448,77 @@ class ClaudeMonitorDaemon:
                                             triggering_lines=[],
                                             metadata={}
                                         )
-                                        immediate_ctx = {
-                                            'should_send_idle_clear': True,
-                                            'bootstrap': True,
-                                            'reason': 'fresh_session_start'
-                                        }
-                                        self.logger.info("Attempting immediate bootstrap clear (/clear) after session start marker")
-                                        execn = recovery_engine.execute_recovery(fake_detection, immediate_ctx)
-                                        if execn:
-                                            self._stats['total_recoveries'] += 1
-                                            self._last_idle_clear_at = time.time()
-                                            self.logger.info("Immediate bootstrap clear dispatched")
+                                        # Determine delay from env or config (default 5s)
+                                        try:
+                                            delay_sec = float(os.environ.get('CLAUDE_MONITOR_BOOTSTRAP_CLEAR_DELAY_SEC') or \
+                                                              self.config.get('monitoring', {}).get('bootstrap_clear_delay_sec', 5.0))
+                                        except Exception:
+                                            delay_sec = 5.0
+                                        self.logger.info(f"Scheduling bootstrap clear (/clear) in {delay_sec:.1f}s")
+                                        def _delayed_clear():
+                                            try:
+                                                time.sleep(delay_sec)
+                                                # Skip if bootstrap was already completed or cancelled
+                                                if not self._pending_bootstrap or self._bootstrap_cleared:
+                                                    self.logger.info("Skipping delayed clear: bootstrap no longer pending or already cleared")
+                                                    return
+                                                immediate_ctx = {
+                                                    'should_send_idle_clear': True,
+                                                    'bootstrap': True,
+                                                    'reason': 'fresh_session_start_delayed'
+                                                }
+                                                t0 = time.time()
+                                                self.logger.info("Dispatching delayed bootstrap clear (/clear) now")
+                                                execn_inner = recovery_engine.execute_recovery(fake_detection, immediate_ctx)
+                                                if execn_inner:
+                                                    self._stats['total_recoveries'] += 1
+                                                    self._last_idle_clear_at = t0
+                                                    self.logger.info("Delayed bootstrap clear dispatched")
+                                                    # Schedule fallback prompt if completion inference isn't observed soon
+                                                    try:
+                                                        try:
+                                                            prompt_delay = float(self.config.get('monitoring', {}).get('bootstrap_prompt_delay_sec', 2.0))
+                                                        except Exception:
+                                                            prompt_delay = 2.0
+                                                        def _fallback_prompt():
+                                                            try:
+                                                                time.sleep(prompt_delay)
+                                                                if not self._pending_bootstrap or self._bootstrap_cleared:
+                                                                    # Either already prompted or not pending
+                                                                    return
+                                                                prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                                                              self.config.get('monitoring', {}).get('spec_name', '')
+                                                                idle_prompt = (
+                                                                    f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
+                                                                    f"make commits after every task completion, then proceed till the last task completed."
+                                                                )
+                                                                prompt_ctx = {
+                                                                    'should_send_idle_prompt': True,
+                                                                    'idle_prompt_text': idle_prompt,
+                                                                    'bootstrap': True,
+                                                                    'reason': 'fallback_after_clear'
+                                                                }
+                                                                self.logger.info("Fallback: dispatching idle prompt after clear delay")
+                                                                execn_prompt = recovery_engine.execute_recovery(fake_detection, prompt_ctx)
+                                                                if execn_prompt:
+                                                                    self._stats['total_recoveries'] += 1
+                                                                    self._last_idle_prompt_at = time.time()
+                                                                    self._pending_bootstrap = False
+                                                                    self._bootstrap_cleared = False
+                                                                    self.logger.info("Fallback: idle prompt dispatched")
+                                                            except Exception as e:
+                                                                self.logger.error(f"Fallback prompt dispatch error: {e}")
+                                                        threading.Thread(target=_fallback_prompt, name="BootstrapPromptFallback", daemon=True).start()
+                                                    except Exception as e:
+                                                        self.logger.error(f"Failed to schedule fallback prompt: {e}")
+                                                else:
+                                                    self.logger.warning("Delayed bootstrap clear not dispatched (engine returned None)")
+                                            except Exception as e:
+                                                self.logger.error(f"Delayed bootstrap clear failed to dispatch: {e}")
+                                        th = threading.Thread(target=_delayed_clear, name="BootstrapClearDelay", daemon=True)
+                                        th.start()
                                     except Exception as e:
-                                        self.logger.error(f"Immediate bootstrap clear failed to dispatch: {e}")
+                                        self.logger.error(f"Failed to schedule delayed bootstrap clear: {e}")
                         except Exception as marker_err:
                             self.logger.debug(f"Session marker check error: {marker_err}")
 
@@ -263,6 +551,14 @@ class ClaudeMonitorDaemon:
                                     ClaudeState.ERROR,
                                 }
 
+                                # Throttle recoveries per state to avoid redundant rapid actions
+                                state_key = detection.state.value
+                                now = time.time()
+                                last_ts = self._last_recovery_by_state.get(state_key, 0)
+                                if (now - last_ts) < self._min_recovery_interval_sec:
+                                    self.logger.debug(f"Throttling recovery for state {detection.state}: last {now - last_ts:.2f}s ago")
+                                    return
+
                                 # Handle IDLE in two phases: first /clear on transition, then prompt on next idle
                                 if detection.state == ClaudeState.IDLE:
                                     # Read overrides from env or config
@@ -273,7 +569,7 @@ class ClaudeMonitorDaemon:
 
                                     now_ts = time.time()
                                     # Phase 1: if we just transitioned into IDLE, send /clear once
-                                    if self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap:
+                                    if (self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap) and not self._bootstrap_cleared:
                                         clear_context = dict(recovery_context)
                                         clear_context.update({
                                             'should_send_idle_clear': True
@@ -284,6 +580,9 @@ class ClaudeMonitorDaemon:
                                             self._stats['total_recoveries'] += 1
                                             self._last_idle_clear_at = now_ts
                                             self.logger.info("Idle clear sent via recovery engine (/clear)")
+                                            # Mark bootstrap clear phase completed if we are bootstrapping
+                                            if self._pending_bootstrap:
+                                                self._bootstrap_cleared = True
                                         else:
                                             self.logger.info("Decision: not sending clear yet")
                                     else:
@@ -297,7 +596,7 @@ class ClaudeMonitorDaemon:
                                             # give a brief moment after clear
                                             should_send_prompt = False
                                         # If we are in bootstrap flow, require that we observed clear completion before prompting
-                                        if self._pending_bootstrap and not self._clear_completed_at:
+                                        if self._pending_bootstrap and not self._bootstrap_cleared:
                                             should_send_prompt = False
 
                                         if should_send_prompt:
@@ -322,6 +621,7 @@ class ClaudeMonitorDaemon:
                                                 # Bootstrap complete once prompt is sent
                                                 if self._pending_bootstrap:
                                                     self._pending_bootstrap = False
+                                                    self._bootstrap_cleared = False
                                         else:
                                             self.logger.info("Decision: not sending prompt yet (cooldown or just cleared)")
 
@@ -329,6 +629,7 @@ class ClaudeMonitorDaemon:
                                     execution = recovery_engine.execute_recovery(detection, recovery_context)
                                     if execution:
                                         self._stats['total_recoveries'] += 1
+                                        self._last_recovery_by_state[state_key] = now
                                         self.logger.info(f"Recovery initiated for state: {detection.state}")
 
                             # Update last detected state for next cycle decisions

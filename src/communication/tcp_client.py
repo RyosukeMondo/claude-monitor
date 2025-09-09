@@ -72,6 +72,8 @@ class TCPClient:
             'last_connect_time': None,
             'last_error': None
         }
+        # Communication tracing
+        self._seq: int = 0  # sequence id for send/receive pairs
         
         # Callbacks
         self._on_connect_callback: Optional[Callable] = None
@@ -90,7 +92,8 @@ class TCPClient:
             'retry_backoff': 2.0,
             'auto_reconnect': True,
             'keepalive': True,
-            'keepalive_interval': 30
+            'keepalive_interval': 30,
+            'trace_communication': False  # when true, log detailed send/recv traces
         }
         
     def set_callbacks(self, 
@@ -228,7 +231,7 @@ class TCPClient:
         with self._lock:
             return self._state
             
-    def send_command(self, command: str, wait_for_response: bool = False, timeout: float = None) -> bool:
+    def send_command(self, command: str, wait_for_response: bool = False, timeout: float = None, context_tag: Optional[str] = None) -> bool:
         """
         Send a command to the Claude Code expect bridge.
         
@@ -247,7 +250,7 @@ class TCPClient:
         if not command.endswith('\n'):
             command += '\n'
             
-        return self._send_with_retry(command, wait_for_response, timeout)
+        return self._send_with_retry(command, wait_for_response, timeout, context_tag)
         
     def send_recovery_action(self, action_type: str, action_data: Dict[str, Any] = None) -> bool:
         """
@@ -279,7 +282,7 @@ class TCPClient:
         return success
         
     def _send_with_retry(self, message: str, wait_for_response: bool = False, 
-                        timeout: float = None) -> bool:
+                        timeout: float = None, context_tag: Optional[str] = None) -> bool:
         """
         Send message with automatic retry logic.
         
@@ -295,7 +298,7 @@ class TCPClient:
         backoff = 1.0
         
         for attempt in range(max_retries + 1):
-            if self._send_message(message, wait_for_response, timeout):
+            if self._send_message(message, wait_for_response, timeout, context_tag):
                 self._stats['successful_sends'] += 1
                 return True
                 
@@ -315,7 +318,7 @@ class TCPClient:
         return False
         
     def _send_message(self, message: str, wait_for_response: bool = False, 
-                     timeout: float = None) -> bool:
+                     timeout: float = None, context_tag: Optional[str] = None) -> bool:
         """
         Send a single message to the server.
         
@@ -333,19 +336,33 @@ class TCPClient:
                 return False
                 
             try:
-                # Send message
+                # Prepare trace data
+                self._seq += 1
+                seq = self._seq
+                start_ts = time.time()
                 message_bytes = message.encode('utf-8')
+                # Send message
                 self._socket.sendall(message_bytes)
                 self._stats['bytes_sent'] += len(message_bytes)
-                
-                self.logger.debug(f"Sent message: {message.strip()}")
+                if self.config.get('trace_communication', False):
+                    ctx = f" ctx={context_tag}" if context_tag else ""
+                    self.logger.info(
+                        f"TX seq={seq}{ctx} bytes={len(message_bytes)} timeout={timeout or self.config['recv_timeout']} msg={message.strip()}"
+                    )
+                else:
+                    prefix = f"[{context_tag}] " if context_tag else ""
+                    self.logger.debug(f"{prefix}Sent message seq={seq}: {message.strip()}")
                 
                 # Wait for response if requested
                 if wait_for_response:
-                    response = self._receive_response(timeout)
+                    response = self._receive_response(timeout, seq, context_tag)
                     if response is None:
                         return False
-                        
+                # Log duration
+                dur_ms = int((time.time() - start_ts) * 1000)
+                if self.config.get('trace_communication', False):
+                    ctx = f" ctx={context_tag}" if context_tag else ""
+                    self.logger.info(f"DONE seq={seq}{ctx} duration_ms={dur_ms}")
                 return True
                 
             except socket.timeout:
@@ -360,7 +377,7 @@ class TCPClient:
                 self.logger.error(f"Unexpected error during send: {e}")
                 return False
                 
-    def _receive_response(self, timeout: float = None) -> Optional[str]:
+    def _receive_response(self, timeout: float = None, seq: Optional[int] = None, context_tag: Optional[str] = None) -> Optional[str]:
         """
         Receive response from server.
         
@@ -375,8 +392,15 @@ class TCPClient:
             
         try:
             self._socket.settimeout(timeout)
-            response = self._socket.recv(4096).decode('utf-8')
-            self.logger.debug(f"Received response: {response.strip()}")
+            response_bytes = self._socket.recv(4096)
+            response = response_bytes.decode('utf-8')
+            if self.config.get('trace_communication', False):
+                tag = f" seq={seq}" if seq is not None else ""
+                ctx = f" ctx={context_tag}" if context_tag else ""
+                self.logger.info(f"RX{tag}{ctx} bytes={len(response_bytes)} msg={response.strip()}")
+            else:
+                prefix = f"[{context_tag}] " if context_tag else ""
+                self.logger.debug(f"{prefix}Received response seq={seq}: {response.strip()}")
             return response
         except socket.timeout:
             self.logger.warning("Response timeout")

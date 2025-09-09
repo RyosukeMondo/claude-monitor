@@ -25,7 +25,7 @@ daemon:
 # Logging system settings for monitoring and debugging
 logging:
   # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  level: INFO
+  level: DEBUG
   
   # Log file path - use absolute path for systemd service
   file: ./logs/claude-monitor.log
@@ -33,7 +33,7 @@ logging:
   # Console logging (stdout/stderr) - useful for development
   console:
     enabled: true
-    level: INFO
+    level: DEBUG
     format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
   
   # File logging settings
@@ -132,6 +132,7 @@ components:
       send_timeout: 3.0
       auto_reconnect: true
       keepalive: true
+      trace_communication: true
   
   # Task Monitor - integrates with spec-workflow MCP system
   task_monitor:
@@ -237,10 +238,10 @@ performance:
 # Settings useful for development and troubleshooting
 development:
   # Enable development mode features
-  debug_mode: false
+  debug_mode: true
   
   # Detailed logging for troubleshooting
-  verbose_logging: false
+  verbose_logging: true
   
   # Testing and validation
   dry_run: false           # Run without executing recovery actions

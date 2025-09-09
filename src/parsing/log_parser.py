@@ -101,6 +101,7 @@ class LogContext:
                 'estimated_bytes': total_chars * 4,  # Rough estimate for Unicode
                 'memory_utilization': len(self._lines) / self.max_lines
             }
+        
 
 
 class LogParser:
@@ -149,6 +150,15 @@ class LogParser:
             'processing_rate': 0.0
         }
         
+        # Behavior flags: start from end to avoid replaying historical lines
+        self._read_from_end = False
+        self._position_initialized = False
+        try:
+            # Expect nested under this parser's config (components.log_parser.monitoring.read_from_end)
+            self._read_from_end = bool(self.config.get('monitoring', {}).get('read_from_end', False))
+        except Exception:
+            self._read_from_end = False
+        
         # Pattern matching for common Claude Code output
         self._compile_patterns()
         
@@ -174,7 +184,7 @@ class LogParser:
             'context_pressure': re.compile(r'(context|memory|limit|full|usage)', re.IGNORECASE),
             'input_prompt': re.compile(r'(\[Y/n\]|\[y/N\]|Press\s+|Enter\s+)', re.IGNORECASE),
             'command_execution': re.compile(r'^[>$#]\s+(.+)$'),
-            'file_path': re.compile(r'(/[^\s]+\.(py|js|ts|md|json|yaml|yml|txt))'),
+            'file_path': re.compile(r'(/[^^\s]+\.(py|js|ts|md|json|yaml|yml|txt))'),
             # Session lifecycle markers
             'session_start_marker': re.compile(r'===\s+Claude Code TCP Bridge Session Started:', re.IGNORECASE),
             'session_end_marker': re.compile(r'===\s+Claude Code TCP Bridge Session Ended:', re.IGNORECASE),
@@ -183,6 +193,9 @@ class LogParser:
             'tcp_bridge_active': re.compile(r'Claude Code is now running with TCP bridge active', re.IGNORECASE),
             # Command acknowledgements
             'clear_completed': re.compile(r"(you'?ve run the /clear command|terminal is now clear)", re.IGNORECASE),
+            # Fallback markers commonly shown after /clear
+            'clear_command_echo': re.compile(r'^\s*[>$#]?\s*/clear\b', re.IGNORECASE),
+            'clear_no_content': re.compile(r'\(no\s+content\)', re.IGNORECASE),
             'timestamp': re.compile(r'\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}')
         }
         
@@ -379,7 +392,16 @@ class LogParser:
             if not self._file_handle:
                 encoding = self.config.get('encoding', 'utf-8')
                 self._file_handle = open(self._log_file_path, 'r', encoding=encoding)
-                self._file_handle.seek(self._current_position)
+                # Initialize starting position
+                if self._read_from_end and not self._position_initialized:
+                    # Start tailing from end to avoid replaying historical lines
+                    self._file_handle.seek(0, os.SEEK_END)
+                    self._current_position = self._file_handle.tell()
+                    self._current_line_number = 0
+                    self._position_initialized = True
+                    self.logger.info("Log parser starting from end of file (read_from_end=true)")
+                else:
+                    self._file_handle.seek(self._current_position)
                 
             lines_processed = 0
             buffer = ""

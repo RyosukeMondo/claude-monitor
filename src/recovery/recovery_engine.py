@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import asyncio
 import json
+import uuid
 
 import sys
 import os
@@ -78,10 +79,14 @@ class RecoveryExecution:
     error_message: Optional[str] = None
     output: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    exec_id: str = ""
     
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+        if not self.exec_id:
+            # short correlation id
+            self.exec_id = uuid.uuid4().hex[:8]
     
     @property
     def duration(self) -> Optional[float]:
@@ -235,7 +240,7 @@ class RecoveryEngine:
         input_waiting_actions = [
             RecoveryAction(
                 action_type=RecoveryActionType.PROVIDE_INPUT,
-                target_state=ClaudeState.ACTIVE,
+                target_state=ClaudeState.INPUT_WAITING,
                 priority=7,
                 command="y",  # Default to 'yes' for prompts
                 timeout=5.0,
@@ -243,7 +248,7 @@ class RecoveryEngine:
             ),
             RecoveryAction(
                 action_type=RecoveryActionType.RESUME_INPUT,
-                target_state=ClaudeState.ACTIVE,
+                target_state=ClaudeState.INPUT_WAITING,
                 priority=6,
                 command="\n",  # Send Enter key
                 timeout=5.0,
@@ -460,11 +465,24 @@ class RecoveryEngine:
             self.logger.debug(f"No suitable action found in strategy: {strategy.name}")
             return None
             
-        # Check cooldown period
-        if self._is_in_cooldown(detection.state):
-            self.logger.debug(f"Recovery cooldown active for state: {detection.state}")
-            return None
-            
+        # Check cooldown period, but do NOT block explicit idle prompt dispatches
+        bypass_cooldown = False
+        try:
+            if recovery_context.get('should_send_idle_prompt'):
+                bypass_cooldown = True
+            elif action.action_type == RecoveryActionType.PROVIDE_INPUT:
+                # Idle prompt path uses PROVIDE_INPUT; allow it to bypass cooldown
+                bypass_cooldown = True
+        except Exception:
+            pass
+
+        if not bypass_cooldown:
+            if self._is_in_cooldown(detection.state):
+                self.logger.debug(f"Recovery cooldown active for state: {detection.state}")
+                return None
+        else:
+            self.logger.debug("Bypassing cooldown for idle prompt dispatch")
+        
         # Execute action
         return self._execute_action(action, recovery_context)
         
@@ -508,22 +526,27 @@ class RecoveryEngine:
             if action.requires_confirmation and not self._can_confirm_action(action, context):
                 continue
             
-            # Special gating: only auto-send 'y' on explicit yes/no prompts
+            # For PROVIDE_INPUT, ensure it's actually an input prompt scenario unless explicitly allowed
             if action.action_type == RecoveryActionType.PROVIDE_INPUT:
-                ev_list = context.get('detection_evidence') or []
-                ev_text = ' '.join(ev_list).lower() if isinstance(ev_list, list) else str(ev_list).lower()
-                # Look for common yes/no indicators
-                yesno_indicators = [
-                    '[y/n]', '[yes/no]', 'yes/no', 'do you want to', 'would you like to', 'continue?'
-                ]
-                if not any(tok in ev_text for tok in yesno_indicators):
-                    # Not a yes/no prompt - skip PROVIDE_INPUT and try next action (likely RESUME_INPUT/Enter)
-                    continue
+                # If caller explicitly requests idle prompt, bypass yes/no gating
+                if context.get('should_send_idle_prompt'):
+                    self.logger.debug("Bypassing PROVIDE_INPUT yes/no gating due to should_send_idle_prompt=True")
+                else:
+                    ev_list = context.get('detection_evidence') or []
+                    ev_text = ' '.join(ev_list).lower() if isinstance(ev_list, list) else str(ev_list).lower()
+                    # Look for common yes/no indicators
+                    yesno_indicators = [
+                        '[y/n]', '[yes/no]', 'yes/no', 'do you want to', 'would you like to', 'continue?'
+                    ]
+                    if not any(tok in ev_text for tok in yesno_indicators):
+                        # Not a yes/no prompt - skip PROVIDE_INPUT and try next action (likely RESUME_INPUT/Enter)
+                        continue
 
             return action
             
         return None
         
+# ... (rest of the code remains the same)
     def _can_confirm_action(self, action: RecoveryAction, context: Dict[str, Any]) -> bool:
         """
         Check if a destructive action can be confirmed.
@@ -615,7 +638,7 @@ class RecoveryEngine:
                 except Exception as e:
                     self.logger.error(f"Error in execution start callback: {e}")
                     
-            self.logger.info(f"Starting recovery action: {execution.action.action_type} - {execution.action.description}")
+            self.logger.info(f"Starting recovery action exec_id={execution.exec_id}: {execution.action.action_type} - {execution.action.description}")
             
             # Execute with retry logic
             result = self._execute_with_retry(execution)
@@ -639,7 +662,7 @@ class RecoveryEngine:
                 except Exception as e:
                     self.logger.error(f"Error in execution failure callback: {e}")
                     
-            self.logger.info(f"Recovery action completed: {result} in {execution.duration:.2f}s")
+            self.logger.info(f"Recovery action completed exec_id={execution.exec_id}: {result} in {execution.duration:.2f}s")
             
         except Exception as e:
             execution.result = RecoveryResult.FAILURE
@@ -742,7 +765,9 @@ class RecoveryEngine:
         # Use expect bridge plain command protocol: "send <text>"
         cmd_text = action.command or '/compact'
         # Wait for bridge ACK so we know it accepted the command
-        success = self.tcp_client.send_command(f"send {cmd_text}", wait_for_response=True, timeout=2.0)
+        success = self.tcp_client.send_command(
+            f"send {cmd_text}", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}"
+        )
         if success:
             execution.output = "Compact command sent successfully"
             time.sleep(2.0)
@@ -765,14 +790,23 @@ class RecoveryEngine:
 
         # Map newline-only command to Enter key
         if input_text == "\n":
-            success = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0)
+            success = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
+            if success:
+                execution.output = "Enter key sent successfully"
+            return success
         else:
-            # Use expect bridge plain command protocol
-            success = self.tcp_client.send_command(f"send {input_text}", wait_for_response=True, timeout=2.0)
-
-        if success:
-            execution.output = f"Input sent successfully"
-        return success
+            # Use expect bridge plain command protocol: type text then press Enter to submit
+            typed = self.tcp_client.send_command(
+                f"send {input_text}", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}"
+            )
+            if not typed:
+                return False
+            # Brief pause to ensure text lands before Enter
+            time.sleep(0.1)
+            submitted = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
+            if submitted:
+                execution.output = "Input sent and submitted (Enter) successfully"
+            return submitted
         
     def _execute_command_action(self, action: RecoveryAction, execution: RecoveryExecution) -> bool:
         """Execute generic command action."""
@@ -786,9 +820,11 @@ class RecoveryEngine:
         
         # Map to expect bridge protocol
         if command == "\n":
-            success = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0)
+            success = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
         else:
-            success = self.tcp_client.send_command(f"send {command}", wait_for_response=True, timeout=2.0)
+            success = self.tcp_client.send_command(
+                f"send {command}", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}"
+            )
         
         if success:
             execution.output = f"Command '{command}' sent successfully"
@@ -801,9 +837,9 @@ class RecoveryEngine:
             if not self.tcp_client.connect():
                 return False
         # Best-effort: send Ctrl+C to stop current action, then an empty Enter
-        ok1 = self.tcp_client.send_command("ctrl-c", wait_for_response=True, timeout=2.0)
+        ok1 = self.tcp_client.send_command("ctrl-c", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
         time.sleep(0.2)
-        ok2 = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0)
+        ok2 = self.tcp_client.send_command("enter", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
         success = ok1 and ok2
         if success:
             execution.output = "Session restart sequence sent (Ctrl+C, Enter)"
@@ -834,7 +870,7 @@ class RecoveryEngine:
             if not self.tcp_client.connect():
                 return False
         # Send Ctrl+C as a non-destructive force-exit signal
-        success = self.tcp_client.send_command("ctrl-c", wait_for_response=True, timeout=2.0)
+        success = self.tcp_client.send_command("ctrl-c", wait_for_response=True, timeout=2.0, context_tag=f"exec:{execution.exec_id}")
         if success:
             execution.output = "Force exit (Ctrl+C) command sent successfully"
         return success

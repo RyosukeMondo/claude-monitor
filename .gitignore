@@ -3,4 +3,5 @@ venv
 *.pyc
 *.log
 
-**__pycache__**
+# ignore py cache
+__pycache__
