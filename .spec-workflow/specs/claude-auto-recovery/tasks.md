@@ -53,7 +53,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1, 1.5_
   - _Prompt: Role: ML Engineer with expertise in pattern recognition and state machine design | Task: Create intelligent state detection engine with pattern matching and confidence scoring following requirements 1.1 and 1.5 | Restrictions: Must prioritize states correctly, avoid false positives, ensure detection latency under 1 second | Success: State detection is accurate and fast, confidence scoring works reliably, state transitions are properly managed_
 
-- [ ] 6. Create pattern definitions in src/detection/patterns.py
+- [x] 6. Create pattern definitions in src/detection/patterns.py
   - File: src/detection/patterns.py
   - Define regex patterns for detecting different Claude Code states
   - Add pattern testing and validation functions
@@ -64,7 +64,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
 
 ## Recovery and Task Management
 
-- [ ] 7. Create recovery engine in src/recovery/recovery_engine.py
+- [x] 7. Create recovery engine in src/recovery/recovery_engine.py
   - File: src/recovery/recovery_engine.py
   - Implement recovery action execution with retry logic and timeout handling
   - Add context-aware recovery strategy selection
@@ -73,7 +73,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.1, 2.4, 3.1, 3.6_
   - _Prompt: Role: Reliability Engineer with expertise in automated recovery and fault tolerance | Task: Create robust recovery engine with action execution and strategy selection following requirements 2.1, 2.4, 3.1, 3.6 | Restrictions: Must handle partial failures gracefully, respect retry limits, ensure recovery actions don't interfere with user activity | Success: Recovery actions execute reliably, retry logic works correctly, recovery strategies are context-appropriate_
 
-- [ ] 8. Create task monitor in src/tasks/task_monitor.py
+- [x] 8. Create task monitor in src/tasks/task_monitor.py
   - File: src/tasks/task_monitor.py
   - Implement spec-workflow MCP integration for task status queries
   - Add task completion detection and monitoring termination logic
@@ -82,7 +82,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 6.1, 6.7_
   - _Prompt: Role: Integration Engineer with expertise in MCP systems and process management | Task: Create task monitor with spec-workflow integration and completion detection following requirements 6.1 and 6.7 | Restrictions: Must handle MCP unavailability gracefully, ensure accurate task status parsing, implement proper cooldown periods | Success: Task status queries work reliably, completion detection is accurate, monitoring termination works correctly_
 
-- [ ] 9. Create notification system in src/notifications/notifier.py
+- [x] 9. Create notification system in src/notifications/notifier.py
   - File: src/notifications/notifier.py
   - Implement desktop notifications and alert management
   - Add notification filtering and rate limiting
