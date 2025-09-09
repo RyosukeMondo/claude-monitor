@@ -1,104 +1,262 @@
-# Claude Auto-Recovery System Configuration
-# YAML format with comprehensive parameter documentation
+# Claude Monitor Configuration
+# ============================
+#
+# This is the main configuration file for Claude Monitor - the automated Claude Code recovery system.
+# All settings are documented below with their default values and descriptions.
 
-# Monitoring Configuration
-# Controls how the system detects different Claude Code execution states
-monitoring:
-  # Idle timeout: How long to wait (in seconds) before considering Claude idle
-  # Range: 10-300 seconds, Default: 30
-  # Lower values = more responsive but may trigger false positives
-  idle_timeout: 30
+# Daemon Configuration
+# --------------------
+# Core daemon process settings
+daemon:
+  # Enable/disable the monitoring daemon
+  enabled: true
   
-  # Input timeout: How long to wait for user input before recovery action
-  # Range: 5-60 seconds, Default: 5
-  # Should be shorter than idle_timeout to catch input prompts quickly
-  input_timeout: 5
+  # Main loop interval in seconds (how often to check for new log entries)
+  # Lower values = faster detection but higher CPU usage
+  # Recommended range: 1.0 - 10.0 seconds
+  loop_interval: 5.0
   
-  # Context pressure timeout: How long to wait before context management
-  # Range: 5-60 seconds, Default: 10
-  # Time to wait before executing /compact when context pressure detected
-  context_pressure_timeout: 10
-  
-  # Task check interval: How often to query spec-workflow for task status
-  # Range: 10-300 seconds, Default: 30
-  # Balance between responsiveness and system load
-  task_check_interval: 30
-  
-  # Completion cooldown: Wait time before terminating monitoring after completion
-  # Range: 30-600 seconds, Default: 60
-  # Prevents premature termination if new tasks are added quickly
-  completion_cooldown: 60
-
-# Recovery Configuration  
-# Controls automatic recovery actions and retry behavior
-recovery:
-  # Maximum number of retry attempts for recovery actions
-  # Range: 1-10, Default: 3
-  # Higher values increase resilience but may delay error reporting
-  max_retries: 3
-  
-  # Retry backoff multiplier for exponential backoff
-  # Range: 1.0-10.0, Default: 2.0
-  # Time between retries = base_delay * (retry_backoff ^ attempt_number)
-  retry_backoff: 2.0
-  
-  # Timeout for /compact command execution
-  # Range: 10-120 seconds, Default: 30
-  # How long to wait for context compaction to complete
-  compact_timeout: 30
+  # Status report interval in seconds (how often to log system status)
+  # Set to 0 to disable periodic status reports
+  status_report_interval: 300.0  # 5 minutes
 
 # Logging Configuration
-# Controls system logging behavior and output destinations
+# --------------------
+# Logging system settings for monitoring and debugging
 logging:
-  # Log level: Controls verbosity of log messages
-  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  # Default: INFO (recommended for normal operation)
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: INFO
   
-  # Log file path: Where to write log messages
-  # Default: /tmp/claude-monitor.log
-  # Ensure the directory is writable by the user running the service
-  file: /tmp/claude-monitor.log
+  # Log file path - use absolute path for systemd service
+  file: /var/log/claude-monitor/claude-monitor.log
   
-  # Console logging: Whether to also output logs to console/stdout
-  # Default: true (useful for debugging and systemd journal integration)
-  console: true
+  # Console logging (stdout/stderr) - useful for development
+  console:
+    enabled: true
+    level: INFO
+    format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
   
-  # Maximum log file size before rotation (in MB)
-  # Range: 1-1000 MB, Default: 100
-  # Log files are rotated automatically to prevent disk space issues
-  max_size_mb: 100
+  # File logging settings
+  file_logging:
+    enabled: true
+    format: "%(asctime)s [%(levelname)s] %(name)s (%(process)d): %(message)s"
+    date_format: "%Y-%m-%d %H:%M:%S"
+  
+  # Log rotation to prevent disk space issues
+  rotation:
+    enabled: true
+    max_size: 10MB          # Maximum log file size
+    backup_count: 5         # Number of backup files to keep
+    rotate_on_startup: false # Rotate logs when daemon starts
 
-# Notification Configuration
-# Controls user notification behavior and rate limiting
-notifications:
-  # Desktop notifications: Enable desktop notification popups
-  # Default: true (requires notify-send or equivalent on the system)
-  desktop: true
+# Component Configuration
+# ----------------------
+# Settings for individual monitoring components
+components:
   
-  # Log actions: Whether to log recovery actions to the log file
-  # Default: true (recommended for audit trail and troubleshooting)
-  log_actions: true
+  # Log Parser - monitors Claude Code terminal output
+  log_parser:
+    enabled: true
+    
+    # Path to Claude Code terminal output log file
+    # This file is created by Claude Code automatically
+    log_file: ~/.local/share/claude_code/terminal_output.log
+    
+    # Alternative log file paths to check (in order of preference)
+    fallback_log_files:
+      - ~/.cache/claude_code/terminal_output.log
+      - /tmp/claude_code_terminal.log
+    
+    # File monitoring settings
+    monitoring:
+      # How often to check for file changes (seconds)
+      poll_interval: 1.0
+      
+      # Buffer size for reading log lines
+      buffer_size: 8192
+      
+      # Maximum lines to read per polling cycle
+      max_lines_per_cycle: 100
+      
+      # Whether to read from end of existing file on startup
+      read_from_end: true
+    
+    # Context extraction settings
+    context:
+      # Number of lines to maintain for context analysis
+      context_window: 10
+      
+      # Maximum age of context lines (seconds)
+      max_context_age: 300
   
-  # Rate limit: Minimum seconds between similar notifications
-  # Range: 10-3600 seconds, Default: 60
-  # Prevents notification spam during rapid state changes
-  rate_limit_seconds: 60
+  # State Detector - analyzes log context to detect Claude Code states
+  state_detector:
+    enabled: true
+    
+    # Detection sensitivity (0.0 to 1.0, higher = more sensitive)
+    sensitivity: 0.7
+    
+    # Minimum confidence threshold for state detection (0.0 to 1.0)
+    min_confidence: 0.6
+    
+    # State detection intervals
+    detection_interval: 2.0  # Seconds between detection cycles
+    
+    # State-specific thresholds
+    state_thresholds:
+      idle: 0.5              # Confidence needed to detect idle state
+      input_waiting: 0.7     # Input prompt detection threshold
+      context_pressure: 0.8  # Context pressure detection threshold
+      error: 0.6             # Error state detection threshold
+      active: 0.4            # Active processing state threshold
+      completed: 0.7         # Task completion detection threshold
+  
+  # Recovery Engine - executes automated recovery actions
+  recovery_engine:
+    enabled: true
+    
+    # Global recovery settings
+    max_retries: 3           # Maximum retry attempts per action
+    retry_backoff: 2.0       # Retry delay multiplier
+    action_timeout: 30.0     # Default timeout for recovery actions (seconds)
+    
+    # Cooldown periods to prevent excessive recovery attempts
+    cooldown_period: 10.0    # Seconds between recovery attempts for same state
+    global_cooldown: 5.0     # Minimum time between any recovery actions
+    
+    # TCP client settings for sending recovery commands
+    tcp_client:
+      host: localhost
+      port: 9999
+      connection_timeout: 5.0
+      send_timeout: 3.0
+      auto_reconnect: true
+      keepalive: true
+  
+  # Task Monitor - integrates with spec-workflow MCP system
+  task_monitor:
+    enabled: true
+    
+    # Query intervals for checking task status
+    query_interval: 30.0     # Seconds between status queries
+    
+    # MCP command settings
+    mcp:
+      timeout: 10.0          # Timeout for MCP commands
+      max_failures: 3        # Max consecutive failures before backoff
+      backoff_multiplier: 2.0 # Failure backoff multiplier
+      max_backoff: 300.0     # Maximum backoff interval (5 minutes)
+  
+  # Notifier - handles user notifications and alerts
+  notifier:
+    enabled: true
+    
+    # Global notification settings
+    min_priority: normal     # Minimum notification priority (low, normal, high, urgent)
+    
+    # Platform-specific settings
+    platforms:
+      linux:
+        enabled: true
+        prefer_notify_send: true
+        timeout: 5000        # Notification timeout (milliseconds)
+      
+      macos:
+        enabled: true
+        sound: default       # Notification sound
+      
+      windows:
+        enabled: true
+        duration: 5          # Toast notification duration (seconds)
+      
+      fallback:
+        enabled: true        # Console fallback always enabled
+    
+    # Notification filtering and rate limiting
+    filtering:
+      enabled: true
+      
+      # Rate limiting to prevent notification spam
+      rate_limiting:
+        enabled: true
+        global:
+          max_per_period: 20
+          period_seconds: 60
+        per_type:
+          error:
+            max_per_period: 5
+            period_seconds: 60
+          warning:
+            max_per_period: 10
+            period_seconds: 60
 
-# TCP Communication Configuration
-# Controls connection to Claude Code expect bridge
-tcp:
-  # Host: TCP server hostname or IP address
-  # Default: localhost (for security, only allow local connections)
-  # Should match the expect bridge configuration
-  host: localhost
+# Monitoring Target Configuration
+# ------------------------------
+# Specify what to monitor
+monitoring:
+  # Target project settings
+  project_path: /mnt/d/repos/claude-monitor
+  spec_name: claude-auto-recovery
   
-  # Port: TCP server port number
-  # Range: 1-65535, Default: 9999
-  # Should match the expect bridge port configuration
-  port: 9999
+  # Claude Code instance settings
+  claude_code:
+    # Expected Claude Code log file location
+    log_path: ~/.local/share/claude_code/terminal_output.log
+    
+    # TCP bridge connection (if using expect bridge)
+    tcp_bridge:
+      enabled: false         # Enable TCP bridge communication
+      host: localhost
+      port: 9999
+
+# Performance and Resource Configuration
+# -------------------------------------
+# Settings for system resource usage
+performance:
+  # Memory usage limits
+  memory:
+    # Maximum memory usage (MB) - system will attempt to stay under this
+    max_usage_mb: 50
+    
+    # Enable memory monitoring and cleanup
+    monitor_usage: true
+    
+    # Cleanup interval (seconds)
+    cleanup_interval: 300
   
-  # Connection timeout: Maximum time to wait for TCP connection
-  # Range: 1-60 seconds, Default: 5
-  # How long to wait when establishing connection to Claude Code
-  connection_timeout: 5
+  # CPU usage settings
+  cpu:
+    # Target maximum CPU usage percentage
+    max_usage_percent: 5.0
+    
+    # Enable CPU usage monitoring
+    monitor_usage: true
+
+# Development and Debugging
+# -------------------------
+# Settings useful for development and troubleshooting
+development:
+  # Enable development mode features
+  debug_mode: false
+  
+  # Detailed logging for troubleshooting
+  verbose_logging: false
+  
+  # Testing and validation
+  dry_run: false           # Run without executing recovery actions
+  validate_config: true    # Validate configuration on startup
+
+# Environment-specific Overrides
+# ------------------------------
+# These settings can be overridden by environment variables
+# Environment variable format: CLAUDE_MONITOR_<SECTION>_<KEY>
+# Example: CLAUDE_MONITOR_DAEMON_LOOP_INTERVAL=2.0
+#
+# Supported environment variables:
+# - CLAUDE_MONITOR_CONFIG_FILE: Override config file path
+# - CLAUDE_MONITOR_LOG_LEVEL: Override log level
+# - CLAUDE_MONITOR_LOG_FILE: Override log file path
+# - CLAUDE_MONITOR_PROJECT_PATH: Override project path
+# - CLAUDE_MONITOR_SPEC_NAME: Override spec name
+# - CLAUDE_MONITOR_DEBUG: Enable debug mode (true/false)
+# - CLAUDE_MONITOR_DRY_RUN: Enable dry run mode (true/false)

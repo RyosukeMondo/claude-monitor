@@ -1,30 +1,158 @@
 {
-  "monitoring": {
-    "idle_timeout": 30,
-    "input_timeout": 5,
-    "context_pressure_timeout": 10,
-    "task_check_interval": 30,
-    "completion_cooldown": 60
-  },
-  "recovery": {
-    "max_retries": 3,
-    "retry_backoff": 2.0,
-    "compact_timeout": 30
+  "daemon": {
+    "enabled": true,
+    "loop_interval": 5.0,
+    "status_report_interval": 300.0
   },
   "logging": {
     "level": "INFO",
-    "file": "/tmp/claude-monitor.log",
-    "console": true,
-    "max_size_mb": 100
+    "file": "/var/log/claude-monitor/claude-monitor.log",
+    "console": {
+      "enabled": true,
+      "level": "INFO",
+      "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    },
+    "file_logging": {
+      "enabled": true,
+      "format": "%(asctime)s [%(levelname)s] %(name)s (%(process)d): %(message)s",
+      "date_format": "%Y-%m-%d %H:%M:%S"
+    },
+    "rotation": {
+      "enabled": true,
+      "max_size": "10MB",
+      "backup_count": 5,
+      "rotate_on_startup": false
+    }
   },
-  "notifications": {
-    "desktop": true,
-    "log_actions": true,
-    "rate_limit_seconds": 60
+  "components": {
+    "log_parser": {
+      "enabled": true,
+      "log_file": "~/.local/share/claude_code/terminal_output.log",
+      "fallback_log_files": [
+        "~/.cache/claude_code/terminal_output.log",
+        "/tmp/claude_code_terminal.log"
+      ],
+      "monitoring": {
+        "poll_interval": 1.0,
+        "buffer_size": 8192,
+        "max_lines_per_cycle": 100,
+        "read_from_end": true
+      },
+      "context": {
+        "context_window": 10,
+        "max_context_age": 300
+      }
+    },
+    "state_detector": {
+      "enabled": true,
+      "sensitivity": 0.7,
+      "min_confidence": 0.6,
+      "detection_interval": 2.0,
+      "state_thresholds": {
+        "idle": 0.5,
+        "input_waiting": 0.7,
+        "context_pressure": 0.8,
+        "error": 0.6,
+        "active": 0.4,
+        "completed": 0.7
+      }
+    },
+    "recovery_engine": {
+      "enabled": true,
+      "max_retries": 3,
+      "retry_backoff": 2.0,
+      "action_timeout": 30.0,
+      "cooldown_period": 10.0,
+      "global_cooldown": 5.0,
+      "tcp_client": {
+        "host": "localhost",
+        "port": 9999,
+        "connection_timeout": 5.0,
+        "send_timeout": 3.0,
+        "auto_reconnect": true,
+        "keepalive": true
+      }
+    },
+    "task_monitor": {
+      "enabled": true,
+      "query_interval": 30.0,
+      "mcp": {
+        "timeout": 10.0,
+        "max_failures": 3,
+        "backoff_multiplier": 2.0,
+        "max_backoff": 300.0
+      }
+    },
+    "notifier": {
+      "enabled": true,
+      "min_priority": "normal",
+      "platforms": {
+        "linux": {
+          "enabled": true,
+          "prefer_notify_send": true,
+          "timeout": 5000
+        },
+        "macos": {
+          "enabled": true,
+          "sound": "default"
+        },
+        "windows": {
+          "enabled": true,
+          "duration": 5
+        },
+        "fallback": {
+          "enabled": true
+        }
+      },
+      "filtering": {
+        "enabled": true,
+        "rate_limiting": {
+          "enabled": true,
+          "global": {
+            "max_per_period": 20,
+            "period_seconds": 60
+          },
+          "per_type": {
+            "error": {
+              "max_per_period": 5,
+              "period_seconds": 60
+            },
+            "warning": {
+              "max_per_period": 10,
+              "period_seconds": 60
+            }
+          }
+        }
+      }
+    }
   },
-  "tcp": {
-    "host": "localhost",
-    "port": 9999,
-    "connection_timeout": 5
+  "monitoring": {
+    "project_path": "/mnt/d/repos/claude-monitor",
+    "spec_name": "claude-auto-recovery",
+    "claude_code": {
+      "log_path": "~/.local/share/claude_code/terminal_output.log",
+      "tcp_bridge": {
+        "enabled": false,
+        "host": "localhost",
+        "port": 9999
+      }
+    }
+  },
+  "performance": {
+    "memory": {
+      "max_usage_mb": 50,
+      "monitor_usage": true,
+      "cleanup_interval": 300
+    },
+    "cpu": {
+      "max_usage_percent": 5.0,
+      "monitor_usage": true
+    }
+  },
+  "development": {
+    "debug_mode": false,
+    "verbose_logging": false,
+    "dry_run": false,
+    "validate_config": true
   }
 }
