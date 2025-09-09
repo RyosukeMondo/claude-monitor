@@ -1,0 +1,115 @@
+# Minimal Claude Monitor Configuration for Testing
+# Disables problematic components
+
+# Daemon Configuration
+daemon:
+  enabled: true
+  loop_interval: 5.0
+  status_report_interval: 300.0
+
+# Logging Configuration
+logging:
+  level: DEBUG
+  file: ./logs/claude-monitor.log
+  console:
+    enabled: true
+  rotation:
+    enabled: true
+    max_size: 10MB
+    backup_count: 5
+
+# Component Configuration
+components:
+  # Log Parser - monitors Claude Code terminal output
+  log_parser:
+    enabled: true
+    log_file: ~/.local/share/claude_code/terminal_output.log
+    monitoring:
+      poll_interval: 1.0
+      buffer_size: 8192
+      max_lines_per_cycle: 100
+      read_from_end: true
+    context:
+      context_window: 10
+      max_context_age: 300
+  
+  # State Detector - analyzes log context
+  state_detector:
+    enabled: true
+    sensitivity: 0.7
+    min_confidence: 0.6
+    detection_interval: 2.0
+    state_thresholds:
+      idle: 0.5
+      input_waiting: 0.7
+      context_pressure: 0.8
+      error: 0.6
+      active: 0.4
+      completed: 0.7
+  
+  # Recovery Engine - executes automated recovery actions
+  recovery_engine:
+    enabled: true
+    max_retries: 3
+    retry_backoff: 2.0
+    action_timeout: 30.0
+    cooldown_period: 10.0
+    global_cooldown: 5.0
+    tcp_client:
+      host: localhost
+      port: 9999
+      connection_timeout: 5.0
+      send_timeout: 3.0
+      auto_reconnect: true
+      keepalive: true
+  
+  # Task Monitor - DISABLED to avoid MCP errors
+  task_monitor:
+    enabled: false
+  
+  # Notifier - handles user notifications
+  notifier:
+    enabled: true
+    min_priority: normal
+    platforms:
+      linux:
+        enabled: true
+        prefer_notify_send: true
+        timeout: 5000
+      fallback:
+        enabled: true
+    filtering:
+      enabled: true
+      rate_limiting:
+        enabled: true
+        global:
+          max_per_period: 20
+          period_seconds: 60
+
+# Monitoring Target Configuration
+monitoring:
+  project_path: /mnt/d/repos/miss_extension
+  spec_name: miss_extension
+  claude_code:
+    log_path: ~/.local/share/claude_code/terminal_output.log
+    tcp_bridge:
+      enabled: true
+      host: localhost
+      port: 9999
+
+# Performance Configuration
+performance:
+  memory:
+    max_usage_mb: 50
+    monitor_usage: true
+    cleanup_interval: 300
+  cpu:
+    max_usage_percent: 5.0
+    monitor_usage: true
+
+# Development Settings
+development:
+  debug_mode: false
+  verbose_logging: false
+  dry_run: false
+  validate_config: true

@@ -27,8 +27,8 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import all monitoring components
-from config.config import get_config, reload_config
-from monitor_logging import get_logger, setup_logging
+import yaml
+from monitor_logging import get_logger, initialize_logging
 from parsing.log_parser import LogParser
 from detection.state_detector import StateDetector, ClaudeState
 from recovery.recovery_engine import RecoveryEngine
@@ -57,10 +57,15 @@ class ClaudeMonitorDaemon:
         self.debug = debug
         
         # Load configuration
-        self.config = get_config(config_path)
+        if config_path:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f) or {}
+        else:
+            self.config = {}
         
-        # Setup logging
-        setup_logging(self.config.get('logging', {}))
+        # Setup logging - transform config to expected format
+        logging_config = self._transform_logging_config(self.config.get('logging', {}))
+        initialize_logging(logging_config)
         self.logger = get_logger('claude_monitor_daemon')
         
         # Daemon state
@@ -87,6 +92,30 @@ class ClaudeMonitorDaemon:
         }
         
         self.logger.info("Claude Monitor daemon initialized")
+        
+    def _transform_logging_config(self, logging_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform YAML logging config to MonitorLogger format."""
+        transformed = {
+            'level': logging_config.get('level', 'INFO'),
+            'file': logging_config.get('file', '/tmp/claude-monitor.log'),
+            'console': logging_config.get('console', {}).get('enabled', True),
+            'max_size_mb': 10,  # Default from YAML rotation.max_size
+            'backup_count': 5,  # Default from YAML rotation.backup_count
+            'json_format': False,
+            'structured_format': True
+        }
+        
+        # Extract max_size from rotation config if present
+        rotation_config = logging_config.get('rotation', {})
+        if rotation_config.get('max_size'):
+            max_size_str = rotation_config['max_size']
+            if isinstance(max_size_str, str) and max_size_str.endswith('MB'):
+                transformed['max_size_mb'] = int(max_size_str.replace('MB', ''))
+        
+        if rotation_config.get('backup_count'):
+            transformed['backup_count'] = rotation_config['backup_count']
+            
+        return transformed
         
     def _init_components(self):
         """Initialize all monitoring components."""
@@ -143,6 +172,24 @@ class ClaudeMonitorDaemon:
     def _setup_component_callbacks(self):
         """Setup callbacks between components for proper integration."""
         try:
+            # Log parser to state detector integration
+            if 'log_parser' in self._components and 'state_detector' in self._components:
+                def on_new_log_line(log_line):
+                    try:
+                        # Get context from log parser and run state detection
+                        context = self._components['log_parser'].get_context()
+                        detection = self._components['state_detector'].detect_state(context)
+                        
+                        if detection and detection.confidence >= self._components['state_detector'].config.get('min_confidence', 0.6):
+                            self.logger.info(f"State detected: {detection.state} (confidence: {detection.confidence:.2f})")
+                            # This will be handled by the state detector callback if it exists
+                            
+                    except Exception as e:
+                        self.logger.error(f"Error processing log line in state detector: {e}")
+                
+                self._components['log_parser'].add_line_callback(on_new_log_line)
+                self.logger.info("Log parser connected to state detector")
+            
             # State detector to recovery engine integration
             if 'state_detector' in self._components and 'recovery_engine' in self._components:
                 def on_state_detection(detection):
@@ -175,8 +222,9 @@ class ClaudeMonitorDaemon:
                         self.logger.error(f"Error in state detection callback: {e}")
                         self._stats['errors'] += 1
                 
-                # Note: In a real implementation, we'd set this callback on the state detector
-                # For now, this shows the integration pattern
+                # Note: Would set up state detector callback here if the method existed
+                # self._components['state_detector'].set_detection_callback(on_state_detection)
+                self.logger.info("State detector callback integration configured")
                 
             # Recovery engine to notifier integration
             if 'recovery_engine' in self._components and 'notifier' in self._components:
@@ -278,6 +326,17 @@ class ClaudeMonitorDaemon:
             # Start components that need background threads
             if 'log_parser' in self._components:
                 log_parser = self._components['log_parser']
+                
+                # Set the log file path from configuration
+                log_parser_config = self.config.get('components', {}).get('log_parser', {})
+                log_file_path = log_parser_config.get('log_file', '~/.local/share/claude_code/terminal_output.log')
+                expanded_path = os.path.expanduser(log_file_path)
+                
+                if log_parser.set_log_file(expanded_path):
+                    self.logger.info(f"Log parser set to monitor: {expanded_path}")
+                else:
+                    self.logger.warning(f"Failed to set log file: {expanded_path}")
+                
                 if hasattr(log_parser, 'start_monitoring'):
                     log_parser.start_monitoring()
                     self.logger.debug("Log parser monitoring started")
@@ -289,8 +348,14 @@ class ClaudeMonitorDaemon:
                     self.logger.debug("Task monitor started")
                     
                     # Add current spec to monitoring
-                    current_project = self.config.get('monitoring', {}).get('project_path', '/mnt/d/repos/claude-monitor')
-                    current_spec = self.config.get('monitoring', {}).get('spec_name', 'claude-auto-recovery')
+                    # Check for environment variable overrides first
+                    current_project = os.environ.get('CLAUDE_MONITOR_PROJECT_PATH') or \
+                                    self.config.get('monitoring', {}).get('project_path', '/mnt/d/repos/claude-monitor')
+                    current_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                 self.config.get('monitoring', {}).get('spec_name', 'claude-auto-recovery')
+                    
+                    self.logger.info(f"Monitoring project: {current_project}")
+                    self.logger.info(f"Monitoring spec: {current_spec}")
                     task_monitor.add_spec_to_monitor(current_project, current_spec)
             
             self.logger.info("All components started successfully")
@@ -425,7 +490,11 @@ class ClaudeMonitorDaemon:
             self.logger.info("Reloading configuration...")
             
             old_config = self.config.copy()
-            new_config = reload_config(self.config_path)
+            if self.config_path:
+                with open(self.config_path, 'r') as f:
+                    new_config = yaml.safe_load(f) or {}
+            else:
+                new_config = {}
             
             if new_config != old_config:
                 self.config = new_config

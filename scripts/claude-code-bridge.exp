@@ -1,0 +1,184 @@
+#!/usr/bin/expect -f
+# Claude Code TCP Bridge Script
+# Based on the blog post: Claude Codeのttyをexpectでハックする
+# Copyright (c) 2025 Modified for Claude Monitor integration
+# Released under the MIT license
+
+# Usage: ./claude-code-bridge.exp [port_number] [log_file] [project_path]
+# Example: ./claude-code-bridge.exp 9999 /tmp/claude-code-terminal.log /path/to/project
+#
+# Command examples:
+#   echo "send hello" > /dev/tcp/localhost/9999  # Input "hello" and send Enter key
+#   echo "enter" > /dev/tcp/localhost/9999       # Send Enter key only
+#   echo "up" > /dev/tcp/localhost/9999          # Up arrow key
+#   echo "down" > /dev/tcp/localhost/9999        # Down arrow key
+
+# Default settings
+set port 9999
+set output_file "/tmp/claude-code-terminal.log"
+set project_path ""
+
+# Argument processing
+if {$argc > 0} {
+    set port [lindex $argv 0]
+}
+if {$argc > 1} {
+    set output_file [lindex $argv 1]
+}
+if {$argc > 2} {
+    set project_path [lindex $argv 2]
+}
+
+# Change to project directory if specified
+if {$project_path != ""} {
+    cd $project_path
+    puts "Changed to project directory: $project_path"
+}
+
+# Create log directory if it doesn't exist
+set log_dir [file dirname $output_file]
+file mkdir $log_dir
+
+# Add session start marker to log
+set timestamp [clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S"]
+set log_fd [open $output_file a]
+puts $log_fd ""
+puts $log_fd "=== Claude Code TCP Bridge Session Started: $timestamp ==="
+puts $log_fd "Project: $project_path"
+puts $log_fd "Working Directory: [pwd]"
+puts $log_fd "TCP Port: $port"
+puts $log_fd "Log File: $output_file"
+puts $log_fd [string repeat "=" 60]
+puts $log_fd ""
+close $log_fd
+
+# Launch claude
+puts "Starting Claude Code..."
+puts "Project directory: [pwd]"
+puts "TCP server will listen on port: $port"
+puts "Output logged to: $output_file"
+puts "Send commands via TCP (e.g., echo \"send hello\" > /dev/tcp/localhost/$port)"
+puts [string repeat "-" 60]
+
+spawn claude --dangerously-skip-permissions
+set timeout -1
+
+# Log file configuration - append mode to preserve session markers
+log_file -a $output_file
+
+# TCP Socket server
+puts "Starting TCP server on port $port..."
+if {[catch {socket -server accept_connection $port} result]} {
+    puts "Error: Could not start TCP server on port $port: $result"
+    puts "Make sure the port is not already in use"
+    exit 1
+}
+
+puts "TCP server started successfully on port $port"
+puts "Claude Monitor can now connect and send commands"
+
+proc accept_connection {sock addr port} {
+    puts "New connection from $addr:$port"
+    fconfigure $sock -blocking 0 -buffering line
+    fileevent $sock readable [list handle_socket_input $sock]
+}
+
+proc handle_socket_input {sock} {
+    if {[catch {gets $sock line} result]} {
+        puts "Connection closed"
+        close $sock
+        return
+    }
+
+    if {$result >= 0 && $line != ""} {
+        puts "Received command: $line"
+        
+        if {[string match "send *" $line]} {
+            # Send text followed by Enter
+            set cmd [string range $line 5 end]
+            puts "Sending text: '$cmd'"
+            send -- $cmd
+            sleep 0.01
+            send -- "\r"
+        } elseif {$line == "enter"} {
+            # Send Enter key only
+            puts "Sending Enter key"
+            send -- "\r"
+        } elseif {$line == "up"} {
+            # Send up arrow key
+            puts "Sending Up arrow"
+            send -- "\033\[A"
+        } elseif {$line == "down"} {
+            # Send down arrow key
+            puts "Sending Down arrow"
+            send -- "\033\[B"
+        } elseif {$line == "left"} {
+            # Send left arrow key
+            puts "Sending Left arrow"
+            send -- "\033\[D"
+        } elseif {$line == "right"} {
+            # Send right arrow key
+            puts "Sending Right arrow"
+            send -- "\033\[C"
+        } elseif {$line == "ctrl-c"} {
+            # Send Ctrl+C
+            puts "Sending Ctrl+C"
+            send -- "\003"
+        } elseif {$line == "ctrl-d"} {
+            # Send Ctrl+D
+            puts "Sending Ctrl+D"
+            send -- "\004"
+        } elseif {$line == "tab"} {
+            # Send Tab key
+            puts "Sending Tab"
+            send -- "\t"
+        } elseif {$line == "escape"} {
+            # Send Escape key
+            puts "Sending Escape"
+            send -- "\033"
+        } elseif {[string match "raw *" $line]} {
+            # Send raw characters
+            set cmd [string range $line 4 end]
+            puts "Sending raw: '$cmd'"
+            send -- $cmd
+        } else {
+            puts "Unknown command: $line"
+            puts "Available commands: send <text>, enter, up, down, left, right, ctrl-c, ctrl-d, tab, escape, raw <chars>"
+        }
+        
+        # Send acknowledgment back to client
+        if {[catch {puts $sock "OK"} result]} {
+            # Connection may have been closed
+            catch {close $sock}
+        }
+    }
+}
+
+# Handle cleanup on exit
+proc cleanup {} {
+    set timestamp [clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S"]
+    set log_fd [open $::output_file a]
+    puts $log_fd ""
+    puts $log_fd "=== Claude Code TCP Bridge Session Ended: $timestamp ==="
+    puts $log_fd ""
+    close $log_fd
+    puts "Session ended. Log saved to: $::output_file"
+}
+
+# Set up signal handlers
+trap cleanup {SIGINT SIGTERM}
+
+# Start interactive session
+puts "Claude Code is now running with TCP bridge active"
+puts "Use Ctrl+C to exit"
+
+# Use interact to handle the TTY properly
+interact {
+    # This allows normal keyboard interaction while maintaining TCP control
+    timeout 1 {
+        # Periodic check to keep the event loop running
+    }
+}
+
+# Cleanup on exit
+cleanup

@@ -28,7 +28,7 @@ logging:
   level: INFO
   
   # Log file path - use absolute path for systemd service
-  file: /var/log/claude-monitor/claude-monitor.log
+  file: ./logs/claude-monitor.log
   
   # Console logging (stdout/stderr) - useful for development
   console:
@@ -135,7 +135,7 @@ components:
   
   # Task Monitor - integrates with spec-workflow MCP system
   task_monitor:
-    enabled: true
+    enabled: false  # Disabled to avoid MCP timeout errors
     
     # Query intervals for checking task status
     query_interval: 30.0     # Seconds between status queries
@@ -205,7 +205,7 @@ monitoring:
     
     # TCP bridge connection (if using expect bridge)
     tcp_bridge:
-      enabled: false         # Enable TCP bridge communication
+      enabled: true          # Enable TCP bridge communication
       host: localhost
       port: 9999
 
