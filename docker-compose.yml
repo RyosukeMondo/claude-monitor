@@ -1,29 +1,48 @@
 version: '3.8'
 
 services:
-  # Next.js Application
+  # Next.js Application with Claude Code Launcher
   app:
     build:
-      context: ./app
+      context: .
       dockerfile: Dockerfile
     container_name: claude-monitor-app
     ports:
       - "3000:3000"
+      - "9999:9999"  # TCP bridge port for Claude Code launcher
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:./prisma/dev.db
+      - DATABASE_URL=postgresql://claude_monitor:claude_monitor_password@db:5432/claude_monitor
       - CLAUDE_MONITOR_LOG_LEVEL=INFO
       - CLAUDE_MONITOR_LOG_CONSOLE=true
+      # Claude Code launcher configuration
+      - CLAUDE_TCP_PORT=9999
+      - CLAUDE_AUTO_INSTALL=true
+      - CLAUDE_LAUNCHER_ENABLED=true
+      - CLAUDE_MAX_INSTANCES=10
+      # TTY and process management
+      - TERM=xterm-256color
+      - DEBIAN_FRONTEND=noninteractive
     volumes:
-      # Mount Claude projects directory for monitoring
-      - ~/.claude:/app/.claude:ro
+      # Mount Claude projects directory for monitoring (read-write for launcher)
+      - ~/.claude:/root/.claude
       # Mount database for persistence
       - claude_monitor_data:/app/data
       # Mount logs directory
       - claude_monitor_logs:/app/logs
+      # Mount Docker socket for container introspection (optional)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - db
     restart: unless-stopped
+    # Enable TTY for Claude Code interactive sessions
+    tty: true
+    stdin_open: true
+    # Add capabilities for process management
+    cap_add:
+      - SYS_PTRACE
+    # Run with appropriate permissions
+    user: "root"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: 30s

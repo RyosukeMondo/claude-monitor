@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Development overrides for Next.js app
+  # Development overrides for Next.js app with Claude Code Launcher
   app:
     build:
       target: base  # Use base stage for development
@@ -11,14 +11,33 @@ services:
       - DATABASE_URL=file:./prisma/dev.db
       - CLAUDE_MONITOR_LOG_LEVEL=DEBUG
       - CLAUDE_MONITOR_LOG_CONSOLE=true
+      # Claude Code launcher development configuration
+      - CLAUDE_TCP_PORT=9999
+      - CLAUDE_AUTO_INSTALL=true
+      - CLAUDE_LAUNCHER_ENABLED=true
+      - CLAUDE_MAX_INSTANCES=5
+      # TTY and process management
+      - TERM=xterm-256color
+      - DEBIAN_FRONTEND=noninteractive
     volumes:
       # Mount source code for hot reload
-      - ./app:/app
+      - .:/app
       - /app/node_modules
       - /app/.next
+      # Mount Claude projects directory for monitoring (read-write for launcher)
+      - ~/.claude:/root/.claude
     ports:
       - "3000:3000"
       - "3001:3001"  # For Next.js dev server
+      - "9999:9999"  # TCP bridge port for Claude Code launcher
+    # Enable TTY for Claude Code interactive sessions
+    tty: true
+    stdin_open: true
+    # Add capabilities for process management in development
+    cap_add:
+      - SYS_PTRACE
+    # Run with appropriate permissions
+    user: "root"
 
   # Use SQLite for development (simpler setup)
   db:

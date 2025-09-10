@@ -90,7 +90,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.1, 2.2, 2.5_
   - _Prompt: Role: React Developer with expertise in modern dashboard interfaces | Task: Create launcher dashboard following requirements 2.1, 2.2, and 2.5, implementing contemporary React patterns with excellent UX | Restrictions: Use modern React patterns (hooks, context), ensure responsive design, focus on user experience | Success: Dashboard is intuitive and responsive, real-time updates work smoothly, excellent user experience_
 
-- [ ] 11. Create instance management components
+- [x] 11. Create instance management components
   - File: src/components/launcher/instance-manager.tsx
   - Implement components for displaying and managing active instances
   - Add status indicators, actions, and real-time updates
@@ -98,7 +98,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.3, 2.4_
   - _Prompt: Role: Frontend Developer specializing in data visualization and interactive components | Task: Create instance management components following requirements 2.3 and 2.4, implementing modern React patterns for instance display and control | Restrictions: Use modern state management, ensure good performance with many instances, focus on usability | Success: Components handle instances efficiently, provide clear status indicators, actions work reliably_
 
-- [ ] 12. Create interactive command interface
+- [x] 12. Create interactive command interface
   - File: src/components/launcher/command-terminal.tsx
   - Implement modern terminal-like interface for sending commands
   - Add command history, validation, and real-time feedback
@@ -106,7 +106,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.2_
   - _Prompt: Role: UI/UX Developer with expertise in terminal interfaces and command input | Task: Create command terminal interface following requirement 1.2, implementing modern terminal-like UI with excellent user experience | Restrictions: Use contemporary UI libraries, ensure accessibility, provide clear command feedback | Success: Terminal interface is intuitive and responsive, command validation works well, excellent user experience_
 
-- [ ] 13. Configure Docker Compose for launcher
+- [x] 13. Configure Docker Compose for launcher
   - File: docker-compose.yml, docker-compose.dev.yml (modify)
   - Update Docker configuration to support launcher functionality
   - Add environment variables and volume mounts for Claude Code access
