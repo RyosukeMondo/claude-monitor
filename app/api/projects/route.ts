@@ -14,6 +14,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '../../lib/database/client';
+import { withPerformanceTracking } from '../../lib/services/performance-monitor';
+
+// Response caching
+const cache = new Map();
+const CACHE_TTL = 30000; // 30 seconds
 
 // Validation schemas using Zod
 const ProjectRequestSchema = z.object({
@@ -45,21 +50,54 @@ const ProjectDeleteSchema = z.object({
 });
 
 /**
- * GET /api/projects - List all monitored projects
+ * GET /api/projects - List all monitored projects (with caching)
  */
-export async function GET(request: NextRequest) {
+async function GET_HANDLER(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const skipCache = searchParams.get('cache') === 'false';
+    const cacheKey = 'projects:list';
+    
+    // Check cache first
+    if (!skipCache && cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey);
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        return NextResponse.json(cached.data, {
+          headers: {
+            'Cache-Control': 'public, max-age=30, s-maxage=30',
+            'X-Cache': 'HIT'
+          }
+        });
+      }
+    }
+
     const db = prisma;
     
-    // Get projects with their session counts and recent activity
+    // Optimized query with minimal data selection
     const projects = await db.project.findMany({
-      include: {
+      select: {
+        id: true,
+        projectPath: true,
+        displayName: true,
+        encodedPath: true,
+        monitoring: true,
+        currentState: true,
+        lastActivity: true,
+        recoverySettings: true,
+        createdAt: true,
+        updatedAt: true,
         sessions: {
           select: {
             id: true,
             isActive: true,
             lastActivity: true,
             eventCount: true
+          },
+          where: {
+            OR: [
+              { isActive: true },
+              { lastActivity: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } } // Last 24 hours
+            ]
           }
         }
       },
@@ -68,7 +106,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Transform data for response
+    // Transform data for response (optimized)
     const projectsData = projects.map(project => ({
       id: project.id,
       projectPath: project.projectPath,
@@ -85,12 +123,26 @@ export async function GET(request: NextRequest) {
       updatedAt: project.updatedAt
     }));
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: {
         projects: projectsData,
         totalProjects: projectsData.length,
-        activeProjects: projectsData.filter(p => p.monitoring).length
+        activeProjects: projectsData.filter(p => p.monitoring).length,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    // Cache the response
+    cache.set(cacheKey, {
+      data: responseData,
+      timestamp: Date.now()
+    });
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, max-age=30, s-maxage=30',
+        'X-Cache': 'MISS'
       }
     });
 
@@ -104,10 +156,19 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Cache invalidation helper
+function invalidateCache(pattern: string = '') {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
+}
+
 /**
  * POST /api/projects - Add project to monitoring
  */
-export async function POST(request: NextRequest) {
+async function POST_HANDLER(request: NextRequest) {
   try {
     const body = await request.json();
     
@@ -177,6 +238,9 @@ export async function POST(request: NextRequest) {
       }
     }, { status: 201 });
 
+    // Invalidate cache
+    invalidateCache('projects');
+
   } catch (error) {
     console.error('[Projects API] Error creating project:', error);
     return NextResponse.json({
@@ -190,7 +254,7 @@ export async function POST(request: NextRequest) {
 /**
  * PUT /api/projects - Update project monitoring settings
  */
-export async function PUT(request: NextRequest) {
+async function PUT_HANDLER(request: NextRequest) {
   try {
     const body = await request.json();
     
@@ -264,6 +328,9 @@ export async function PUT(request: NextRequest) {
       }
     });
 
+    // Invalidate cache
+    invalidateCache('projects');
+
   } catch (error) {
     console.error('[Projects API] Error updating project:', error);
     return NextResponse.json({
@@ -277,7 +344,7 @@ export async function PUT(request: NextRequest) {
 /**
  * DELETE /api/projects - Remove project from monitoring
  */
-export async function DELETE(request: NextRequest) {
+async function DELETE_HANDLER(request: NextRequest) {
   try {
     const body = await request.json();
     
@@ -332,6 +399,9 @@ export async function DELETE(request: NextRequest) {
       }
     });
 
+    // Invalidate cache
+    invalidateCache('projects');
+
   } catch (error) {
     console.error('[Projects API] Error deleting project:', error);
     return NextResponse.json({
@@ -341,3 +411,9 @@ export async function DELETE(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+// Export optimized handlers with performance tracking
+export const GET = withPerformanceTracking(GET_HANDLER);
+export const POST = withPerformanceTracking(POST_HANDLER);
+export const PUT = withPerformanceTracking(PUT_HANDLER);
+export const DELETE = withPerformanceTracking(DELETE_HANDLER);

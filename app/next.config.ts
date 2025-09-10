@@ -2,15 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Optimize production builds
-  swcMinify: true,
   compress: true,
   productionBrowserSourceMaps: false,
   
-  // Enable experimental features for better performance
-  experimental: {
-    typedRoutes: true,
-    serverComponentsExternalPackages: ["chokidar", "pino"],
-  },
+  // Enable features for better performance
+  typedRoutes: true,
+  serverExternalPackages: ["chokidar", "pino"],
 
   // Webpack optimizations
   webpack: (config, { isServer }) => {
@@ -73,9 +70,6 @@ const nextConfig: NextConfig = {
 
   // Output standalone for Docker deployment
   output: "standalone",
-  
-  // Disable telemetry in production
-  telemetry: false,
 };
 
 export default nextConfig;

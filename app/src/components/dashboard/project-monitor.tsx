@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { FixedSizeGrid as Grid } from 'react-window';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer
@@ -12,6 +13,7 @@ import {
   MonitoringMetrics,
   RecoveryAction 
 } from '../../types/monitoring';
+import { performanceMonitor } from '../../lib/services/performance-monitor';
 
 interface ProjectMonitorProps {
   projects: ProjectInfo[];
@@ -71,10 +73,38 @@ const StateIndicator: React.FC<{ state: ClaudeState; lastActivity: Date }> = ({ 
   );
 };
 
+// Virtualized project grid item
+interface VirtualizedProjectItemProps {
+  columnIndex: number;
+  rowIndex: number;
+  style: React.CSSProperties;
+  data: {
+    projects: ProjectInfo[];
+    onRecoveryAction: (action: RecoveryAction) => void;
+    columnsPerRow: number;
+  };
+}
+
+function VirtualizedProjectItem({ columnIndex, rowIndex, style, data }: VirtualizedProjectItemProps) {
+  const { projects, onRecoveryAction, columnsPerRow } = data;
+  const projectIndex = rowIndex * columnsPerRow + columnIndex;
+  const project = projects[projectIndex];
+
+  if (!project) {
+    return <div style={style} />;
+  }
+
+  return (
+    <div style={style} className="p-2">
+      <ProjectCard project={project} onRecoveryAction={onRecoveryAction} />
+    </div>
+  );
+}
+
 const ProjectCard: React.FC<{ 
   project: ProjectInfo; 
   onRecoveryAction: (action: RecoveryAction) => void;
-}> = ({ project, onRecoveryAction }) => {
+}> = React.memo(({ project, onRecoveryAction }) => {
   const handleClearCommand = () => {
     onRecoveryAction({
       type: 'clear',
@@ -152,9 +182,82 @@ const ProjectCard: React.FC<{
       </div>
     </div>
   );
+});
+
+// Virtualized project grid for handling many projects efficiently
+interface VirtualizedProjectGridProps {
+  projects: ProjectInfo[];
+  onRecoveryAction: (action: RecoveryAction) => void;
+  containerWidth: number;
+  containerHeight?: number;
+}
+
+const VirtualizedProjectGrid: React.FC<VirtualizedProjectGridProps> = ({
+  projects,
+  onRecoveryAction,
+  containerWidth,
+  containerHeight = 600
+}) => {
+  // Calculate optimal grid dimensions
+  const cardWidth = 384; // Matches xl:grid-cols-2 breakpoint
+  const cardHeight = 220; // Height of project cards
+  const columnsPerRow = Math.floor(containerWidth / cardWidth) || 1;
+  const rowCount = Math.ceil(projects.length / columnsPerRow);
+
+  const gridData = useMemo(() => ({
+    projects,
+    onRecoveryAction,
+    columnsPerRow,
+  }), [projects, onRecoveryAction, columnsPerRow]);
+
+  if (projects.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
+        No projects currently being monitored
+      </div>
+    );
+  }
+
+  // Use regular grid for small project counts (better UX)
+  if (projects.length <= 10) {
+    return (
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {projects.map((project) => (
+          <ProjectCard
+            key={project.projectPath}
+            project={project}
+            onRecoveryAction={onRecoveryAction}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-2 text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
+        <span>Showing {projects.length} projects (virtualized for performance)</span>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <span>High-performance mode</span>
+        </div>
+      </div>
+      <Grid
+        columnCount={columnsPerRow}
+        columnWidth={cardWidth}
+        height={Math.min(containerHeight, rowCount * cardHeight)}
+        rowCount={rowCount}
+        rowHeight={cardHeight}
+        itemData={gridData}
+        className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+      >
+        {VirtualizedProjectItem}
+      </Grid>
+    </div>
+  );
 };
 
-const MetricsChart: React.FC<{ metrics: MonitoringMetrics }> = ({ metrics }) => {
+const MetricsChart: React.FC<{ metrics: MonitoringMetrics }> = React.memo(({ metrics }) => {
   // Generate mock historical data for demo
   const [historicalData] = useState(() => {
     const now = new Date();
@@ -212,7 +315,7 @@ const MetricsChart: React.FC<{ metrics: MonitoringMetrics }> = ({ metrics }) => 
   );
 };
 
-const DaemonStatusCard: React.FC<{ stats: DaemonStatistics }> = ({ stats }) => {
+const DaemonStatusCard: React.FC<{ stats: DaemonStatistics }> = React.memo(({ stats }) => {
   const formatUptime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -261,7 +364,7 @@ const DaemonStatusCard: React.FC<{ stats: DaemonStatistics }> = ({ stats }) => {
       </div>
     </div>
   );
-};
+});
 
 export const ProjectMonitor: React.FC<ProjectMonitorProps> = ({
   projects,
@@ -271,11 +374,34 @@ export const ProjectMonitor: React.FC<ProjectMonitorProps> = ({
   realTimeUpdates = true
 }) => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [containerWidth, setContainerWidth] = useState(1200);
+  const [performanceMetrics, setPerformanceMetrics] = useState(performanceMonitor.getCurrentMetrics());
+
+  // Track component performance
+  useEffect(() => {
+    const renderStart = performance.now();
+    performanceMonitor.recordComponentPerformance('ProjectMonitor', performance.now() - renderStart);
+  });
+
+  // Container width detection for responsive virtualization
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      const updateWidth = () => setContainerWidth(node.offsetWidth);
+      updateWidth();
+      
+      const resizeObserver = new ResizeObserver(updateWidth);
+      resizeObserver.observe(node);
+      
+      return () => resizeObserver.disconnect();
+    }
+  }, []);
 
   useEffect(() => {
     if (realTimeUpdates) {
       const interval = setInterval(() => {
         setLastUpdate(new Date());
+        // Update performance metrics in real-time
+        setPerformanceMetrics(performanceMonitor.getCurrentMetrics());
       }, 1000);
 
       return () => clearInterval(interval);
@@ -327,32 +453,31 @@ export const ProjectMonitor: React.FC<ProjectMonitorProps> = ({
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Projects Grid */}
-          <div className="lg:col-span-2">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4" id="projects-heading">
-              Projects ({projects.length})
-            </h2>
-            <div 
-              className="grid grid-cols-1 xl:grid-cols-2 gap-4" 
-              role="region" 
-              aria-labelledby="projects-heading"
-            >
-              {projects.map((project) => (
-                <ProjectCard
-                  key={project.projectPath}
-                  project={project}
-                  onRecoveryAction={onRecoveryAction}
-                />
-              ))}
+          <div className="lg:col-span-2" ref={containerRef}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white" id="projects-heading">
+                Projects ({projects.length})
+              </h2>
+              {performanceMetrics && (
+                <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                  <span>⚡ {Math.round(performanceMetrics.responseTime)}ms</span>
+                  {projects.length > 10 && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Optimized</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {projects.length === 0 && (
-              <div 
-                className="text-center py-12 text-gray-500 dark:text-gray-400" 
-                role="status" 
-                aria-live="polite"
-              >
-                No projects currently being monitored
-              </div>
-            )}
+            <div role="region" aria-labelledby="projects-heading">
+              <VirtualizedProjectGrid
+                projects={projects}
+                onRecoveryAction={onRecoveryAction}
+                containerWidth={containerWidth}
+                containerHeight={projects.length > 10 ? 800 : undefined}
+              />
+            </div>
           </div>
 
           {/* Right Sidebar */}
