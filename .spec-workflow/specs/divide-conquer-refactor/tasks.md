@@ -4,7 +4,7 @@
 _Prompt: Role: [specialized developer role] | Task: [clear task description with context references] | Restrictions: [what not to do, constraints] | Success: [specific completion criteria]_
 This helps provide better AI agent guidance beyond simple "work on this task" prompts. -->
 
-- [-] 1. Initialize Next.js project with TypeScript
+- [x] 1. Initialize Next.js project with TypeScript
   - File: package.json, next.config.js, tsconfig.json, app/layout.tsx
   - Create new Next.js 14+ project with App Router
   - Configure TypeScript with strict mode and proper app directory structure
@@ -14,7 +14,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1_
   - _Prompt: Role: Full-stack Developer specializing in Next.js and TypeScript project setup | Task: Initialize a new Next.js 14+ project with App Router and TypeScript strict mode following requirement 1.1, using app directory structure inspired by the Python src/ organization | Restrictions: Must use App Router only, maintain strict TypeScript settings, follow Next.js 14 conventions | Success: Project initializes correctly, TypeScript compiles without errors, App Router structure mirrors Python module organization_
 
-- [ ] 2. Create core TypeScript interfaces
+- [x] 2. Create core TypeScript interfaces
   - File: app/lib/types/conversation.ts, app/lib/types/state.ts, app/lib/types/project.ts
   - Define ConversationEvent, StateAnalysis, ProjectInfo interfaces
   - Add comprehensive typing for JSONL data structures
@@ -24,7 +24,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.1, 2.2_
   - _Prompt: Role: TypeScript Developer specializing in type systems and data modeling | Task: Create comprehensive TypeScript interfaces following requirements 2.1 and 2.2, converting Python dataclasses from src/parsing/log_parser.py LogLine and LogContext to TypeScript interfaces | Restrictions: Must provide complete type coverage for JSONL structure, maintain type safety throughout, do not use 'any' types | Success: All interfaces compile without errors, complete type coverage for JSONL data, runtime validation with Zod schemas_
 
-- [ ] 3. Set up file system monitoring service
+- [x] 3. Set up file system monitoring service
   - File: app/lib/services/jsonl-monitor.ts
   - Implement file watching for `~/.claude/projects/` directories
   - Add project path encoding/decoding logic
