@@ -1,402 +1,512 @@
 # Claude Monitor
 
-**Automated Claude Code Recovery System**
+**Next.js Web Dashboard for Automated Claude Code Recovery**
 
-Claude Monitor is an intelligent monitoring and recovery system that watches your Claude Code sessions in real-time, automatically detecting states like context pressure, input waiting, and errors, then executing appropriate recovery actions to keep your development workflow smooth.
+Claude Monitor is a modern web-based monitoring and recovery system built with Next.js that watches your Claude Code sessions in real-time. It provides a sophisticated dashboard for monitoring multiple projects, automatically detecting states like context pressure, input waiting, and errors, then executing appropriate recovery actions through an intuitive web interface.
 
 ## 🚀 Quick Start
 
-### Option 1: Using Expect TCP Bridge (Recommended)
+### Web Dashboard Setup
 
-**Prerequisites:** Install `expect` if not already available
+**1. Install Dependencies and Setup Database:**
 ```bash
-# Ubuntu/Debian
-sudo apt install expect
+# Navigate to the app directory
+cd app
 
-# macOS
-brew install expect
+# Install Node.js dependencies
+npm install
+
+# Setup the database
+npm run db:generate
+npm run db:migrate
+npm run db:seed
 ```
 
-**Terminal 1: Start Claude Monitor**
+**2. Start the Development Server:**
 ```bash
-# Using Python directly
-python3 run_monitor.py
+# Start Next.js development server
+npm run dev
 
-# Or using the launcher script
-./start_monitoring.sh monitor
+# Open your browser to http://localhost:3000
 ```
 
-**Terminal 2: Start Claude Code with TCP Bridge**
-```bash
-# Using Python directly (with full TTY support and TCP control)
-python3 run_claude.py /path/to/your/project
+**3. Configure Project Monitoring:**
+- Navigate to the Dashboard tab
+- Add your project paths for monitoring
+- Configure recovery settings for each project
+- The system will automatically discover Claude Code sessions
 
-# Or using the launcher script
-./start_monitoring.sh claude /path/to/your/project
+### Legacy Python Monitor (Deprecated)
 
-# Advanced usage
-python3 run_claude.py /path/to/project --tcp-port 8888
-python3 run_claude.py /path/to/project --no-expect  # Fallback mode
-```
-
-### Option 2: Using the All-in-One Launcher Script
+The original Python-based monitor is still available for reference but is being phased out in favor of the Next.js dashboard:
 
 ```bash
-# Check setup first
-./start_monitoring.sh setup
-
-# Start monitor in Terminal 1
-./start_monitoring.sh
-
-# Start Claude Code in Terminal 2  
-./start_monitoring.sh claude ~/my-project
-
-# Check status anytime
-./start_monitoring.sh status
-```
-
-### Option 3: Manual Setup
-
-**Terminal 1: Claude Code**
-```bash
-mkdir -p ~/.local/share/claude_code
-claude --dangerously-skip-permissions | tee ~/.local/share/claude_code/terminal_output.log
-```
-
-**Terminal 2: Claude Monitor**
-```bash
-source venv/bin/activate
-cd src
-python main.py --config ../config/claude-monitor.yml --debug
+# Legacy Python monitor (for historical reference)
+python3 run_monitor.py --config config/claude-monitor.yml
 ```
 
 ## 📋 Prerequisites
 
-- Python 3.8+
+- Node.js 18+ and npm
 - Claude Code CLI installed and configured
-- Linux/macOS/WSL environment
+- Linux/macOS/WSL environment (for file system monitoring)
+- Modern web browser (Chrome, Firefox, Safari, Edge)
 
 ## 🛠️ Installation
 
-1. **Clone and setup the repository:**
+1. **Clone the repository:**
 ```bash
 git clone <repository-url>
 cd claude-monitor
 ```
 
-2. **Create virtual environment and install dependencies:**
+2. **Setup the Next.js application:**
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+cd app
+npm install
 ```
 
-3. **Create necessary directories:**
+3. **Initialize the database:**
 ```bash
-mkdir -p ~/.local/share/claude_code
-mkdir -p logs
+npm run db:generate
+npm run db:migrate
+npm run db:seed
 ```
+
+4. **Start the development server:**
+```bash
+npm run dev
+```
+
+5. **Access the web dashboard:**
+Open your browser to http://localhost:3000
 
 ## 🎯 Features
 
-### Real-time Monitoring
-- **Log Parser**: Monitors Claude Code terminal output in real-time
-- **State Detection**: Identifies Claude Code states (idle, active, context pressure, input waiting, errors)  
-- **Context Analysis**: Maintains sliding window of recent activity for intelligent decision making
-- **TCP Bridge**: Full TTY support with remote control capabilities via expect
+### Modern Web Dashboard
+- **Real-time UI**: React-based dashboard with live updates via WebSocket
+- **Project Management**: Monitor multiple Claude Code projects simultaneously
+- **Session Tracking**: View detailed session history and conversation events
+- **Performance Metrics**: Real-time charts and statistics for monitoring health
 
-### Automated Recovery
-- **Context Pressure Relief**: Automatically compacts conversation when context limits are reached
-- **Input Recovery**: Detects and handles input prompts that may be stuck
-- **Error Recovery**: Identifies error patterns and suggests or executes recovery actions
-- **Task Continuation**: Integrates with spec-workflow to track and continue tasks
+### Intelligent JSONL Processing
+- **Structured Data**: Leverages Claude Code's native JSONL logs for clean event processing
+- **State Detection**: Advanced TypeScript algorithms for detecting Claude states
+- **Event Analysis**: Rich conversation event processing with full context
+- **No Terminal Parsing**: Eliminates complex ANSI escape sequence handling
 
-### Notifications
-- **Desktop Notifications**: Native notifications for important events
-- **Priority Filtering**: Configurable notification levels to avoid spam
-- **Multiple Platforms**: Linux (notify-send), macOS (osascript), Windows (toast)
+### Interactive Recovery Controls
+- **One-Click Recovery**: Execute recovery actions directly from the web interface
+- **Custom Commands**: Send arbitrary commands to Claude Code sessions
+- **Automation Rules**: Configure automatic recovery behaviors per project
+- **Recovery History**: Track all recovery actions and their effectiveness
 
-### TCP Control Interface
-- **Remote Commands**: Send commands via TCP for automation
-- **Interactive Control**: Full keyboard input support (arrows, Ctrl+C, Enter, etc.)
-- **External Integration**: Control Claude Code from other scripts or applications
-- **Recovery Actions**: Automated input when Claude Code gets stuck
+### Developer Experience
+- **TypeScript Safety**: Full type safety throughout the application
+- **Modern Testing**: Jest unit tests, Playwright E2E tests
+- **Database Integration**: Prisma ORM with SQLite/PostgreSQL support
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
 
 ## 📁 Project Structure
 
 ```
 claude-monitor/
-├── config/
-│   └── claude-monitor.yml     # Main configuration file
-├── src/
-│   ├── main.py               # Main daemon entry point
-│   ├── config/               # Configuration management
-│   ├── monitor_logging/      # Structured logging system
-│   ├── parsing/              # Log parsing and monitoring
-│   ├── detection/            # State detection and pattern matching
-│   ├── recovery/             # Recovery action execution
-│   ├── tasks/                # Task monitoring integration
-│   ├── notifications/        # Desktop notification system
-│   └── communication/        # TCP communication for recovery
-├── logs/                     # Log files (created automatically)
-├── venv/                     # Python virtual environment
-├── run_claude.py            # Python script for Claude Code with monitoring
-├── run_monitor.py           # Python script for Monitor daemon
-├── start_monitoring.sh      # All-in-one launcher script
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
+├── app/                          # Next.js Application
+│   ├── src/
+│   │   ├── app/                  # Next.js App Router pages
+│   │   │   ├── dashboard/        # Dashboard page
+│   │   │   ├── sessions/         # Session detail pages
+│   │   │   └── recovery/         # Recovery controls page
+│   │   ├── components/           # React components
+│   │   │   └── dashboard/        # Dashboard-specific components
+│   │   └── types/                # TypeScript type definitions
+│   ├── lib/                      # Service layer and utilities
+│   │   ├── services/             # Business logic services
+│   │   └── database/             # Database schema and operations
+│   ├── prisma/                   # Database schema and migrations
+│   ├── __tests__/                # Unit tests
+│   ├── e2e/                      # End-to-end tests
+│   ├── docs/                     # Documentation files
+│   ├── package.json              # Dependencies and scripts
+│   └── next.config.ts            # Next.js configuration
+├── config/                       # Legacy Python configuration
+├── src/                          # Legacy Python source (deprecated)
+└── README.md                    # This file
 ```
 
 ## ⚙️ Configuration
 
-The main configuration is in `config/claude-monitor.yml`. Key sections:
+### Web Dashboard Configuration
 
-### Daemon Settings
-```yaml
-daemon:
-  enabled: true
-  loop_interval: 5.0          # How often to check for changes
-  status_report_interval: 300.0
+Configuration is managed through the web interface and stored in the database:
+
+1. **Project Settings**: Configure monitoring for each project
+2. **Recovery Rules**: Set up automatic recovery behaviors  
+3. **Notification Preferences**: Choose alert levels and methods
+4. **Performance Tuning**: Adjust monitoring intervals and thresholds
+
+### Environment Variables
+
+Create a `.env.local` file in the `app/` directory:
+
+```bash
+# Database
+DATABASE_URL="file:./dev.db"
+
+# Development settings
+NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Claude Code paths
+CLAUDE_PROJECTS_PATH="~/.claude/projects"
+CLAUDE_LOG_PATH="~/.local/share/claude_code"
+
+# WebSocket settings
+WEBSOCKET_PORT=3001
+WS_HEARTBEAT_INTERVAL=30000
+
+# Monitoring settings
+JSONL_POLL_INTERVAL=1000
+STATE_DETECTION_CONFIDENCE=0.7
+RECOVERY_COOLDOWN_MS=10000
 ```
 
-### Log Parser
-```yaml
-components:
-  log_parser:
-    enabled: true
-    log_file: ~/.local/share/claude_code/terminal_output.log
-    monitoring:
-      poll_interval: 1.0      # File check frequency
-      buffer_size: 8192
-```
+### Legacy Configuration
 
-### State Detection
-```yaml
-  state_detector:
-    enabled: true
-    sensitivity: 0.7          # Detection sensitivity (0.0-1.0)
-    min_confidence: 0.6       # Minimum confidence threshold
-```
-
-### Recovery Actions
-```yaml
-  recovery_engine:
-    enabled: true
-    max_retries: 3
-    cooldown_period: 10.0     # Prevent excessive recovery attempts
-```
+The legacy Python monitor configuration is in `config/claude-monitor.yml` (deprecated).
 
 ## 🚨 Monitoring States
 
-Claude Monitor detects and responds to these Claude Code states:
+Claude Monitor's TypeScript state detection engine identifies these Claude Code states:
 
 ### 🟢 ACTIVE
-- **Description**: Claude Code is actively processing
-- **Indicators**: Tool calls, code generation, file operations
-- **Actions**: Monitor and log activity
+- **Description**: Claude Code is actively processing requests
+- **Detection**: Tool calls in JSONL, assistant message activity, file operations
+- **Dashboard**: Green indicator with activity timeline
+- **Actions**: Real-time monitoring and performance tracking
 
 ### 🟡 IDLE  
-- **Description**: No recent activity
-- **Indicators**: No new log entries for extended period
-- **Actions**: Check for stalled processes, gentle nudge if needed
+- **Description**: No recent conversation activity
+- **Detection**: No new JSONL events for configured threshold
+- **Dashboard**: Yellow indicator with "last seen" timestamp
+- **Actions**: Optional idle notifications, session health checks
 
-### 🟠 INPUT_WAITING
-- **Description**: Waiting for user input
-- **Indicators**: Prompt patterns, cursor waiting
-- **Actions**: Notify user, detect stuck input scenarios
+### 🟠 WAITING_INPUT
+- **Description**: Claude is waiting for user response
+- **Detection**: Assistant message without follow-up user message
+- **Dashboard**: Blue indicator with wait duration
+- **Actions**: User notification, stuck session detection
 
-### 🔴 CONTEXT_PRESSURE
-- **Description**: Approaching context limits
-- **Indicators**: Large conversations, memory warnings
-- **Actions**: Automatic conversation compaction, context cleanup
+### 🔴 ERROR
+- **Description**: Error states in conversation flow
+- **Detection**: Error patterns in JSONL message content
+- **Dashboard**: Red indicator with error details and recovery options
+- **Actions**: Automatic error recovery, manual intervention options
 
-### ❌ ERROR
-- **Description**: Error states detected
-- **Indicators**: Exception traces, failure patterns
-- **Actions**: Error recovery, restart suggestions, debugging aid
-
-### ✅ COMPLETED
-- **Description**: Task or operation completed
-- **Indicators**: Success messages, completion patterns
-- **Actions**: Log completion, update task status
+### ❓ UNKNOWN
+- **Description**: Unable to determine current state
+- **Detection**: Insufficient data or parsing errors
+- **Dashboard**: Gray indicator with diagnostic information
+- **Actions**: Session refresh, debug logging, manual state override
 
 ## 📊 Usage Examples
 
-### Basic Monitoring
-```bash
-# Using launcher script (easiest)
-./start_monitoring.sh                    # Terminal 1: Start monitor
-./start_monitoring.sh claude ~/my-project # Terminal 2: Start Claude
+### Web Dashboard Usage
 
-# Using Python scripts directly
-python3 run_monitor.py                   # Terminal 1: Start monitor  
-python3 run_claude.py ~/my-project       # Terminal 2: Start Claude
+**1. Monitor Multiple Projects:**
+```bash
+# Start the dashboard
+cd app && npm run dev
+
+# Open http://localhost:3000 in your browser
+# Navigate to Dashboard tab
+# Add project paths: /home/user/project1, /home/user/project2
+# View real-time status for all projects
 ```
 
-### Advanced Usage
+**2. Session Management:**
 ```bash
-# Custom configuration
-python3 run_monitor.py --config custom-config.yml
-
-# Specific project monitoring with debug logging
-python3 run_claude.py /path/to/specific/project --log-level DEBUG
-
-# Debug mode monitoring
-python3 run_monitor.py --debug
-
-# Dry run mode (no actual recovery actions)
-python3 run_monitor.py --dry-run
-
-# Check setup and status
-./start_monitoring.sh setup
-./start_monitoring.sh status
+# View detailed session information
+# Click on any project in the dashboard
+# See conversation timeline, command history, state transitions
+# Access recovery controls and session management
 ```
 
-### Script Options
-
-**run_claude.py options:**
-- `--log-level DEBUG|INFO|WARNING|ERROR` - Set Claude Code log level
-- `--no-expect` - Use fallback mode instead of expect TCP bridge
-- `--tcp-port PORT` - TCP port for expect bridge (default: 9999)
-- `--check-setup` - Validate setup and exit
-
-**run_monitor.py options:**
-- `--config PATH` - Custom configuration file path
-- `--debug` - Enable debug logging
-- `--dry-run` - Test mode without executing recovery actions
-- `--daemon` - Run as background daemon
-- `--status` - Show current monitoring status
-- `--check-setup` - Validate setup and exit
-
-### TCP Commands Reference
-
-When using the expect bridge, you can send commands via TCP:
-
+**3. Recovery Actions:**
 ```bash
-# Send text input followed by Enter
-echo "send hello world" > /dev/tcp/localhost/9999
-
-# Send just Enter key
-echo "enter" > /dev/tcp/localhost/9999
-
-# Navigation keys
-echo "up" > /dev/tcp/localhost/9999      # Up arrow
-echo "down" > /dev/tcp/localhost/9999    # Down arrow
-echo "left" > /dev/tcp/localhost/9999    # Left arrow
-echo "right" > /dev/tcp/localhost/9999   # Right arrow
-
-# Control keys
-echo "ctrl-c" > /dev/tcp/localhost/9999  # Ctrl+C
-echo "ctrl-d" > /dev/tcp/localhost/9999  # Ctrl+D
-echo "tab" > /dev/tcp/localhost/9999     # Tab key
-echo "escape" > /dev/tcp/localhost/9999  # Escape key
-
-# Raw character sequences
-echo "raw \033[H" > /dev/tcp/localhost/9999  # Send raw escape sequence
+# From the web interface:
+# - Click "Send /clear" for context cleanup
+# - Use "Custom Command" for specific actions
+# - Configure automatic recovery rules
+# - View recovery history and success rates
 ```
 
-**Integration Example:**
+### CLI Usage (for development)
+
+**Development server with debugging:**
 ```bash
-# Monitor for input prompts and auto-respond
-tail -f ~/.local/share/claude_code/terminal_output.log | while read line; do
-  if [[ "$line" =~ "Do you want to continue" ]]; then
-    echo "send y" > /dev/tcp/localhost/9999
-  fi
-done
+# Start with debug logging
+NODE_ENV=development npm run dev
+
+# Run tests
+npm run test              # Unit tests
+npm run e2e              # End-to-end tests
+npm run test:coverage    # Coverage report
+
+# Database management
+npm run db:studio        # Database GUI
+npm run db:reset         # Reset database
+npm run db:seed          # Seed with test data
 ```
 
-## 📈 Statistics and Reporting
+### NPM Scripts Reference
 
-Claude Monitor provides detailed statistics:
+**Development:**
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build production bundle
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint code analysis
 
-- **Detection Metrics**: State detection counts and confidence scores
-- **Recovery Metrics**: Success rates, retry counts, action timings  
-- **Performance Metrics**: Processing rates, memory usage, uptime
-- **Task Metrics**: Completion rates, progress tracking
+**Testing:**
+- `npm run test` - Run Jest unit tests
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Generate test coverage report
+- `npm run e2e` - Run Playwright E2E tests
+- `npm run e2e:ui` - Run E2E tests with UI
 
-View statistics by sending `SIGUSR1` to the daemon process or checking the logs.
+**Database:**
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:migrate` - Run database migrations
+- `npm run db:studio` - Open database GUI
+- `npm run db:seed` - Seed database with test data
+- `npm run db:reset` - Reset database and reseed
+
+### API Integration
+
+The Next.js application exposes REST APIs for programmatic integration:
+
+```bash
+# Get project status
+curl http://localhost:3000/api/projects
+
+# Send recovery action
+curl -X POST http://localhost:3000/api/recovery \
+  -H "Content-Type: application/json" \
+  -d '{"projectPath":"/path/to/project","action":"clear"}'
+
+# Get session details
+curl http://localhost:3000/api/sessions/[session-id]
+
+# WebSocket connection (for real-time updates)
+const socket = io('http://localhost:3000');
+socket.on('stateChange', (data) => {
+  console.log('State changed:', data);
+});
+```
+
+**TypeScript SDK Usage:**
+```typescript
+import { MonitoringClient } from './lib/client';
+
+const client = new MonitoringClient('http://localhost:3000');
+
+// Monitor a project
+await client.startMonitoring('/path/to/project');
+
+// Send recovery action
+const result = await client.sendRecoveryAction({
+  projectPath: '/path/to/project',
+  action: 'clear',
+  reason: 'Context pressure detected'
+});
+```
+
+## 📈 Analytics and Reporting
+
+The web dashboard provides comprehensive analytics:
+
+### Real-time Metrics
+- **State Distribution**: Live pie charts showing current project states
+- **Activity Timeline**: Historical view of state changes and events
+- **Performance Graphs**: Response times, processing rates, system load
+- **Recovery Analytics**: Success rates, action frequency, effectiveness scores
+
+### Exportable Reports
+- **CSV Export**: Download session data and metrics for analysis
+- **JSON API**: Programmatic access to all monitoring data
+- **Performance Reports**: Detailed analysis of monitoring efficiency
+- **Custom Dashboards**: Create project-specific monitoring views
+
+### Database Queries
+Use Prisma Studio (`npm run db:studio`) to explore data directly:
+```sql
+-- Recent recovery actions
+SELECT * FROM RecoveryAction 
+WHERE createdAt > datetime('now', '-24 hours')
+ORDER BY createdAt DESC;
+
+-- Project monitoring statistics
+SELECT projectPath, COUNT(*) as sessionCount,
+       AVG(responseTime) as avgResponseTime
+FROM MonitoringSession 
+GROUP BY projectPath;
+```
 
 ## 🔧 Troubleshooting
 
 ### Common Issues
 
-**Monitor can't find Claude Code log file:**
+**Web dashboard won't start:**
 ```bash
-# Check if directory exists
-ls -la ~/.local/share/claude_code/
+# Check Node.js version
+node --version  # Should be 18+
 
-# Verify log file is being created
-python run_claude.py /tmp/test
-ls -la ~/.local/share/claude_code/terminal_output.log
+# Clean install dependencies
+rm -rf node_modules package-lock.json
+npm install
+
+# Reset database
+npm run db:reset
 ```
 
-**Permission errors:**
+**JSONL files not being detected:**
 ```bash
-# Fix permissions
-chmod 755 ~/.local/share/claude_code/
-touch ~/.local/share/claude_code/terminal_output.log
+# Check Claude Code directory
+ls -la ~/.claude/projects/
+
+# Verify environment variables
+echo $CLAUDE_PROJECTS_PATH
+
+# Check file permissions
+chmod -R 755 ~/.claude/projects/
 ```
 
-**Desktop notifications not working:**
+**Real-time updates not working:**
 ```bash
-# Linux: Install notify-send
-sudo apt install libnotify-bin
+# Check WebSocket connection in browser console
+# Should see "Connected to monitoring server"
 
-# macOS: Should work with built-in osascript
-# Windows: Should work with built-in PowerShell
+# Verify WebSocket port
+netstat -tlnp | grep 3001
+
+# Check firewall settings
+sudo ufw allow 3001
 ```
 
 ### Debug Mode
-Run with `--debug` flag for detailed logging:
+
+**Development server with debug output:**
 ```bash
-python run_monitor.py --debug
+# Enable debug logging
+DEBUG=* npm run dev
+
+# Run specific debug tests
+DEBUG=jsonl-monitor npm run test -- --testPathPattern=jsonl
 ```
 
-### Log Files
-Check these locations for troubleshooting:
-- `./logs/claude-monitor.log` - Main monitor log
-- `~/.local/share/claude_code/terminal_output.log` - Claude Code output
+### Log Files and Debugging
+
+**Browser Developer Tools:**
+- Open browser DevTools (F12)
+- Check Console tab for JavaScript errors
+- Monitor Network tab for failed API requests
+- View WebSocket connections in Network tab
+
+**Server Logs:**
+```bash
+# View Next.js development logs
+npm run dev -- --debug
+
+# Check database operations
+DATABASE_DEBUG=1 npm run dev
+
+# Monitor file system watchers
+DEBUG=chokidar npm run dev
+```
 
 ## 🧪 Development
 
 ### Running Tests
+
+**Unit Tests:**
 ```bash
-source venv/bin/activate
-pytest tests/ -v
+npm run test                    # Run all tests
+npm run test:watch             # Watch mode
+npm run test:coverage          # With coverage
+npm run test -- --testPathPattern=api  # Specific tests
 ```
 
-### Code Structure
-- **Modular Design**: Each component is independently testable
-- **Configuration-Driven**: Behavior controlled via YAML configuration
-- **Thread-Safe**: Concurrent processing with proper synchronization
-- **Resource Efficient**: Bounded memory usage, automatic cleanup
+**End-to-End Tests:**
+```bash
+npm run e2e                    # Headless mode
+npm run e2e:headed            # With browser UI
+npm run e2e:ui                # Interactive mode
+npm run e2e:debug             # Debug mode
+```
+
+### Code Architecture
+
+- **Type-Safe**: Full TypeScript coverage with strict mode
+- **Component-Based**: React components with clear separation of concerns
+- **Service Layer**: Business logic isolated in `/lib/services/`
+- **Database-First**: Prisma ORM with migration-based schema evolution
+- **Real-time**: WebSocket integration for live updates
+- **Tested**: Comprehensive unit and E2E test coverage
 
 ## 📝 Configuration Reference
 
 ### Environment Variables
-Override configuration with environment variables:
+
+Create `.env.local` in the `app/` directory:
+
 ```bash
-export CLAUDE_MONITOR_LOG_LEVEL=DEBUG
-export CLAUDE_MONITOR_IDLE_TIMEOUT=60
-export CLAUDE_MONITOR_MAX_RETRIES=5
+# Required
+DATABASE_URL="file:./dev.db"
+CLAUDE_PROJECTS_PATH="~/.claude/projects"
+
+# Optional
+NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+WEBSOCKET_PORT=3001
+JSONL_POLL_INTERVAL=1000
+STATE_DETECTION_CONFIDENCE=0.7
+RECOVERY_COOLDOWN_MS=10000
+LOG_LEVEL=info
+
+# Production
+DATABASE_URL="postgresql://user:pass@host:port/db"
+REDIS_URL="redis://localhost:6379"
+SENTRY_DSN="https://..."
 ```
 
-### Component Configuration
-Each component can be individually configured:
+### Database Configuration
 
-```yaml
-components:
-  log_parser:
-    enabled: true
-    # Component-specific settings
-  
-  state_detector:
-    enabled: true
-    # Detection thresholds
-  
-  recovery_engine:
-    enabled: true
-    # Recovery behavior
+**Development (SQLite):**
+```bash
+# Use local SQLite database
+DATABASE_URL="file:./dev.db"
+npm run db:migrate
+```
+
+**Production (PostgreSQL):**
+```bash
+# Use PostgreSQL for production
+DATABASE_URL="postgresql://username:password@localhost:5432/claude_monitor"
+npm run db:deploy
+```
+
+### Next.js Configuration
+
+Edit `next.config.ts` for advanced settings:
+```typescript
+const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['prisma']
+  },
+  env: {
+    CLAUDE_PROJECTS_PATH: process.env.CLAUDE_PROJECTS_PATH,
+  }
+};
 ```
 
 ## 🤝 Contributing
@@ -416,14 +526,38 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 For issues and questions:
 1. Check the troubleshooting section above
-2. Review the configuration documentation
-3. Check existing issues in the repository
-4. Create a new issue with detailed information
+2. Review the [Setup Guide](./app/docs/setup.md)
+3. Check the [API Documentation](./app/docs/api.md)
+4. Check existing issues in the repository
+5. Create a new issue with detailed information
 
 ## 🔮 Roadmap
 
-- [ ] Web dashboard for monitoring multiple Claude sessions
-- [ ] Integration with more development tools
+### Completed ✅
+- [x] Next.js web dashboard with real-time monitoring
+- [x] JSONL-based event processing (no terminal parsing)
+- [x] TypeScript service architecture
+- [x] Interactive recovery controls
+- [x] Multi-project monitoring support
+
+### In Progress 🔄
+- [ ] Enhanced state detection algorithms
+- [ ] Mobile-responsive dashboard improvements  
+- [ ] Advanced analytics and reporting
+- [ ] WebSocket performance optimizations
+
+### Planned 📅
 - [ ] Machine learning-based state prediction
-- [ ] Cloud deployment options
+- [ ] Cloud deployment with Docker/Kubernetes
+- [ ] Slack/Discord/Teams integration
 - [ ] Plugin system for custom recovery actions
+- [ ] Multi-user collaboration features
+- [ ] API rate limiting and authentication
+- [ ] Automated performance regression detection
+
+## 📚 Documentation
+
+- [Setup Guide](./app/docs/setup.md) - Complete installation and configuration guide
+- [API Documentation](./app/docs/api.md) - REST API and WebSocket reference
+- [Architecture Overview](#project-structure) - System design and component structure
+- [TypeScript Types](./app/src/types/) - Complete type definitions for the system
