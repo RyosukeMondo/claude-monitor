@@ -10,6 +10,9 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { EventEmitter } from 'events';
+import { LogHelpers } from '../utils/logger';
+import { ErrorHelpers } from '../utils/error-handler';
+import { FileSystemError, JSONLParsingError, ProjectError, ErrorFactory } from '../utils/errors';
 
 // Types for JSONL events
 export interface JSONLEvent {
@@ -20,6 +23,7 @@ export interface JSONLEvent {
   content?: string;
   timestamp: Date;
   metadata?: Record<string, any>;
+  error?: Error;
 }
 
 export interface SessionInfo {
@@ -136,11 +140,17 @@ export class JSONLFileSystemMonitor extends EventEmitter {
    */
   async startGlobalMonitoring(): Promise<boolean> {
     if (this.isMonitoring) {
+      LogHelpers.warning('jsonl-monitor', 'Global monitoring is already active');
       this.emit('warning', 'Global monitoring is already active');
       return false;
     }
 
     try {
+      LogHelpers.info('jsonl-monitor', 'Starting global JSONL monitoring', {
+        claudeProjectsDir: this.claudeProjectsDir,
+        config: this.config
+      });
+
       // Check if Claude projects directory exists
       await fs.access(this.claudeProjectsDir);
       
@@ -167,6 +177,11 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       this.isMonitoring = true;
       this.stats.startTime = new Date();
       
+      LogHelpers.systemEvent('jsonl-monitor', 'monitoring_started', 'Global JSONL monitoring started successfully', {
+        directory: this.claudeProjectsDir,
+        startTime: this.stats.startTime
+      });
+      
       this.emit('monitoring_started', { 
         directory: this.claudeProjectsDir,
         startTime: this.stats.startTime 
@@ -174,7 +189,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       
       return true;
     } catch (error) {
-      this.handleError(error, 'Failed to start global monitoring');
+      await this.handleError(error, 'Failed to start global monitoring');
       return false;
     }
   }
@@ -205,7 +220,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       this.isMonitoring = false;
       this.emit('monitoring_stopped', { stopTime: new Date() });
     } catch (error) {
-      this.handleError(error, 'Error stopping global monitoring');
+      await this.handleError(error, 'Error stopping global monitoring');
     }
   }
 
@@ -245,7 +260,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       this.emit('project_monitoring_started', { projectPath, encodedPath });
       return true;
     } catch (error) {
-      this.handleError(error, `Failed to start monitoring project: ${projectPath}`);
+      this.handleErrorSync(error, `Failed to start monitoring project: ${projectPath}`);
       return false;
     }
   }
@@ -277,7 +292,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
 
       this.emit('project_monitoring_stopped', { projectPath });
     } catch (error) {
-      this.handleError(error, `Error stopping project monitoring: ${projectPath}`);
+      this.handleErrorSync(error, `Error stopping project monitoring: ${projectPath}`);
     }
   }
 
@@ -336,7 +351,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
         }
       }
     } catch (error) {
-      this.handleError(error, `Error scanning project directory: ${projectDir}`);
+      await this.handleError(error, `Error scanning project directory: ${projectDir}`);
     }
   }
 
@@ -400,7 +415,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       });
       
     } catch (error) {
-      this.handleError(error, `Failed to start monitoring file: ${filePath}`);
+      this.handleErrorSync(error, `Failed to start monitoring file: ${filePath}`);
     }
   }
 
@@ -444,7 +459,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       }
 
     } catch (error) {
-      this.handleError(error, `Error processing file changes: ${filePath}`);
+      this.handleErrorSync(error, `Error processing file changes: ${filePath}`);
     }
   }
 
@@ -507,7 +522,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
       }
       
     } catch (error) {
-      this.handleError(error, `Error reading new lines from: ${filePath}`);
+      this.handleErrorSync(error, `Error reading new lines from: ${filePath}`);
     }
   }
 
@@ -545,7 +560,7 @@ export class JSONLFileSystemMonitor extends EventEmitter {
         }
       }
     } catch (error) {
-      this.handleError(error, `Error handling file added: ${filePath}`);
+      this.handleErrorSync(error, `Error handling file added: ${filePath}`);
     }
   }
 
@@ -585,19 +600,76 @@ export class JSONLFileSystemMonitor extends EventEmitter {
   }
 
   private handleWatcherError(error: Error): void {
-    this.handleError(error, 'File watcher error');
+    this.handleErrorSync(new FileSystemError(
+      `File watcher error: ${error.message}`,
+      'watch',
+      this.claudeProjectsDir,
+      { component: 'jsonl-monitor', recoverable: true }
+    ), 'File watcher error');
   }
 
-  private handleError(error: unknown, context: string): void {
+  private async handleError(error: unknown, context: string): Promise<void> {
     this.stats.errors++;
-    const errorMsg = error instanceof Error ? error.message : String(error);
     
+    // Convert to structured error if needed
+    let structuredError = error;
+    if (!(error instanceof Error)) {
+      structuredError = new FileSystemError(
+        `${context}: ${String(error)}`,
+        'unknown',
+        undefined,
+        { component: 'jsonl-monitor' }
+      );
+    }
+    
+    // Handle with centralized error system
+    const result = await ErrorHelpers.handle(structuredError, {
+      component: 'jsonl-monitor',
+      logError: true,
+      attemptRecovery: true
+    });
+    
+    // Emit error event for listeners
     this.emit('error', {
       type: 'error' as const,
       timestamp: new Date(),
-      message: `${context}: ${errorMsg}`,
+      message: result.userMessage,
       context,
-      error
+      error: structuredError,
+      filePath: '',
+      recoverable: result.recoverable,
+      shouldRetry: result.shouldRetry
+    });
+  }
+
+  // Synchronous error handler for backwards compatibility
+  private handleErrorSync(error: unknown, context: string): void {
+    this.stats.errors++;
+    
+    // Convert to structured error if needed
+    let structuredError = error;
+    if (!(error instanceof Error)) {
+      structuredError = new FileSystemError(
+        `${context}: ${String(error)}`,
+        'unknown',
+        undefined,
+        { component: 'jsonl-monitor' }
+      );
+    }
+    
+    // Log synchronously
+    LogHelpers.error('jsonl-monitor', structuredError, { context });
+    
+    // Emit error event for listeners
+    this.emit('error', {
+      type: 'error' as const,
+      timestamp: new Date(),
+      message: context,
+      context,
+      error: structuredError,
+      filePath: '',
+      recoverable: false,
+      shouldRetry: false
     });
   }
 
