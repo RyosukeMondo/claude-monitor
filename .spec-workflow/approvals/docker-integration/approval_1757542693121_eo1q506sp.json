@@ -1,0 +1,39 @@
+{
+  "id": "approval_1757542693121_eo1q506sp",
+  "title": "Docker Integration Requirements",
+  "filePath": ".spec-workflow/specs/docker-integration/requirements.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-10T22:18:13.121Z",
+  "category": "spec",
+  "categoryName": "docker-integration",
+  "response": "Feedback Summary (2 comments):\n\nSpecific Text Comments:\n1. \"システムは監視のためにセッションメタデータをJSONL形式で記録するものとする。\": not system, but claude code app save session metadata under ~/.claude/projects/{project folder path with / -> - replaced}/{session_id}.jsonl\nsystem monitor it's timestamp, update, contents\n2. \"システムは明確なインストール手順と検証を提供するものとする。\": also need to consider login on start up first claude code on first container.\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"selection\",\n      \"comment\": \"not system, but claude code app save session metadata under ~/.claude/projects/{project folder path with / -> - replaced}/{session_id}.jsonl\\nsystem monitor it's timestamp, update, contents\",\n      \"timestamp\": \"2025-09-10T22:20:49.370Z\",\n      \"selectedText\": \"システムは監視のためにセッションメタデータをJSONL形式で記録するものとする。\",\n      \"highlightColor\": {\n        \"bg\": \"rgba(255, 235, 59, 0.3)\",\n        \"border\": \"#FFEB3B\",\n        \"name\": \"#ffeb3b\"\n      },\n      \"id\": \"comment_1757542849370_opp1ovpjq\"\n    },\n    {\n      \"type\": \"selection\",\n      \"comment\": \"also need to consider login on start up first claude code on first container.\",\n      \"timestamp\": \"2025-09-10T22:21:27.602Z\",\n      \"selectedText\": \"システムは明確なインストール手順と検証を提供するものとする。\",\n      \"highlightColor\": {\n        \"bg\": \"rgba(255, 235, 59, 0.3)\",\n        \"border\": \"#FFEB3B\",\n        \"name\": \"#ffeb3b\"\n      },\n      \"id\": \"comment_1757542887602_8od4natur\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (2 comments):\\n\\nSpecific Text Comments:\\n1. \\\"システムは監視のためにセッションメタデータをJSONL形式で記録するものとする。\\\": not system, but claude code app save session metadata under ~/.claude/projects/{project folder path with / -> - replaced}/{session_id}.jsonl\\nsystem monitor it's timestamp, update, contents\\n2. \\\"システムは明確なインストール手順と検証を提供するものとする。\\\": also need to consider login on start up first claude code on first container.\\n\",\n  \"timestamp\": \"2025-09-10T22:22:06.530Z\"\n}",
+  "respondedAt": "2025-09-10T22:22:06.436Z",
+  "comments": [
+    {
+      "type": "selection",
+      "comment": "not system, but claude code app save session metadata under ~/.claude/projects/{project folder path with / -> - replaced}/{session_id}.jsonl\nsystem monitor it's timestamp, update, contents",
+      "timestamp": "2025-09-10T22:20:49.370Z",
+      "selectedText": "システムは監視のためにセッションメタデータをJSONL形式で記録するものとする。",
+      "highlightColor": {
+        "bg": "rgba(255, 235, 59, 0.3)",
+        "border": "#FFEB3B",
+        "name": "#ffeb3b"
+      },
+      "id": "comment_1757542849370_opp1ovpjq"
+    },
+    {
+      "type": "selection",
+      "comment": "also need to consider login on start up first claude code on first container.",
+      "timestamp": "2025-09-10T22:21:27.602Z",
+      "selectedText": "システムは明確なインストール手順と検証を提供するものとする。",
+      "highlightColor": {
+        "bg": "rgba(255, 235, 59, 0.3)",
+        "border": "#FFEB3B",
+        "name": "#ffeb3b"
+      },
+      "id": "comment_1757542887602_8od4natur"
+    }
+  ]
+}

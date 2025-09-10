@@ -1,0 +1,12 @@
+{
+  "id": "approval_1757544390665_cp6rz5xgg",
+  "title": "Docker Integration Tasks (Optimized - No Legacy Constraints)",
+  "filePath": ".spec-workflow/specs/docker-integration/tasks.md",
+  "type": "document",
+  "status": "approved",
+  "createdAt": "2025-09-10T22:46:30.665Z",
+  "category": "spec",
+  "categoryName": "docker-integration",
+  "response": "ダッシュボードから承認",
+  "respondedAt": "2025-09-10T22:48:40.441Z"
+}

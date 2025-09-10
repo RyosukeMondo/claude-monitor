@@ -1,0 +1,21 @@
+{
+  "id": "approval_1757544176890_b68az8zcw",
+  "title": "Docker Integration Tasks (Final - TTY Bridge Options)",
+  "filePath": ".spec-workflow/specs/docker-integration/tasks.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-10T22:42:56.890Z",
+  "category": "spec",
+  "categoryName": "docker-integration",
+  "response": "Feedback Summary (1 comments):\n\nGeneral Comments:\n1. current implementation of next.js app is not well tested. so no need to care backword compatibility, no need to respect current implementation.\n\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"general\",\n      \"comment\": \"current implementation of next.js app is not well tested. so no need to care backword compatibility, no need to respect current implementation.\",\n      \"timestamp\": \"2025-09-10T22:44:48.876Z\",\n      \"id\": \"comment_1757544288876_l63zdvvyu\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nGeneral Comments:\\n1. current implementation of next.js app is not well tested. so no need to care backword compatibility, no need to respect current implementation.\\n\\n\",\n  \"timestamp\": \"2025-09-10T22:44:49.955Z\"\n}",
+  "respondedAt": "2025-09-10T22:44:50.657Z",
+  "comments": [
+    {
+      "type": "general",
+      "comment": "current implementation of next.js app is not well tested. so no need to care backword compatibility, no need to respect current implementation.",
+      "timestamp": "2025-09-10T22:44:48.876Z",
+      "id": "comment_1757544288876_l63zdvvyu"
+    }
+  ]
+}

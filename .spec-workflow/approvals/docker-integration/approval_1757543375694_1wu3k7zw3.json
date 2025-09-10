@@ -1,0 +1,27 @@
+{
+  "id": "approval_1757543375694_1wu3k7zw3",
+  "title": "Docker Integration Tasks Breakdown",
+  "filePath": ".spec-workflow/specs/docker-integration/tasks.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-10T22:29:35.695Z",
+  "category": "spec",
+  "categoryName": "docker-integration",
+  "response": "Feedback Summary (1 comments):\n\nSpecific Text Comments:\n1. \"- [ ] 1. Dockerインストールサービスインターフェースを作成する\n  - ファイル: l...\": I wonder why docker install contained in next.js implementation.\nI supposed docker compos up to launch next.js. if yes, clean up this section assuming docker launches next js app.\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"selection\",\n      \"comment\": \"I wonder why docker install contained in next.js implementation.\\nI supposed docker compos up to launch next.js. if yes, clean up this section assuming docker launches next js app.\",\n      \"timestamp\": \"2025-09-10T22:33:18.826Z\",\n      \"selectedText\": \"- [ ] 1. Dockerインストールサービスインターフェースを作成する\\n  - ファイル: lib/types/docker.ts\\n  - インストールステータス、ランチャー設定、Docker操作用のTypeScriptインターフェースを定義する\\n  - プロジェクトパターンに従って既存の基本インターフェースを拡張する\\n  - 目的: Docker統合とランチャー機能の型安全性を確立する\\n  - _活用: lib/types/index.ts、lib/types/state.ts_\\n  - _要件: 6.1、1.1_\\n  - _プロンプト: 役割: Docker 統合と型システムを専門とする TypeScript 開発者 | タスク: 要件 6.1 および 1.1 に従い、lib/types/index.ts から既存の型パターンを拡張して、Docker インストール ステータス、ランチャー構成、および Claude Code 統合用の包括的な TypeScript インターフェースを作成する | 制限: 既存の型定義を変更しない、下位互換性を維持する、プロジェクトの命名規則に従う | 成功: すべてのインターフェースがエラーなしでコンパイルされ、基本型から適切に継承され、Docker およびランチャーの要件を完全にカバーする_\",\n      \"highlightColor\": {\n        \"bg\": \"rgba(255, 235, 59, 0.3)\",\n        \"border\": \"#FFEB3B\",\n        \"name\": \"#ffeb3b\"\n      },\n      \"id\": \"comment_1757543598826_zqwzeleg3\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nSpecific Text Comments:\\n1. \\\"- [ ] 1. Dockerインストールサービスインターフェースを作成する\\n  - ファイル: l...\\\": I wonder why docker install contained in next.js implementation.\\nI supposed docker compos up to launch next.js. if yes, clean up this section assuming docker launches next js app.\\n\",\n  \"timestamp\": \"2025-09-10T22:33:24.914Z\"\n}",
+  "respondedAt": "2025-09-10T22:33:24.577Z",
+  "comments": [
+    {
+      "type": "selection",
+      "comment": "I wonder why docker install contained in next.js implementation.\nI supposed docker compos up to launch next.js. if yes, clean up this section assuming docker launches next js app.",
+      "timestamp": "2025-09-10T22:33:18.826Z",
+      "selectedText": "- [ ] 1. Dockerインストールサービスインターフェースを作成する\n  - ファイル: lib/types/docker.ts\n  - インストールステータス、ランチャー設定、Docker操作用のTypeScriptインターフェースを定義する\n  - プロジェクトパターンに従って既存の基本インターフェースを拡張する\n  - 目的: Docker統合とランチャー機能の型安全性を確立する\n  - _活用: lib/types/index.ts、lib/types/state.ts_\n  - _要件: 6.1、1.1_\n  - _プロンプト: 役割: Docker 統合と型システムを専門とする TypeScript 開発者 | タスク: 要件 6.1 および 1.1 に従い、lib/types/index.ts から既存の型パターンを拡張して、Docker インストール ステータス、ランチャー構成、および Claude Code 統合用の包括的な TypeScript インターフェースを作成する | 制限: 既存の型定義を変更しない、下位互換性を維持する、プロジェクトの命名規則に従う | 成功: すべてのインターフェースがエラーなしでコンパイルされ、基本型から適切に継承され、Docker およびランチャーの要件を完全にカバーする_",
+      "highlightColor": {
+        "bg": "rgba(255, 235, 59, 0.3)",
+        "border": "#FFEB3B",
+        "name": "#ffeb3b"
+      },
+      "id": "comment_1757543598826_zqwzeleg3"
+    }
+  ]
+}
