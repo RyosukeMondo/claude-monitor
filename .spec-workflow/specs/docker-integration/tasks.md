@@ -74,7 +74,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 3.1, 3.2, 3.5_
   - _Prompt: Role: Monitoring Engineer with expertise in modern file monitoring and event systems | Task: Create launcher monitoring service following requirements 3.1, 3.2, and 3.5, designing clean monitoring architecture for launcher sessions | Restrictions: Use modern file watching patterns, implement efficient event handling, focus on performance | Success: Monitoring service efficiently tracks launcher sessions, provides real-time updates, minimal performance overhead_
 
-- [ ] 9. Implement real-time instance monitoring
+- [x] 9. Implement real-time instance monitoring
   - File: lib/services/instance-health.ts
   - Create modern health monitoring service for launcher instances
   - Integrate with WebSocket for real-time dashboard updates
