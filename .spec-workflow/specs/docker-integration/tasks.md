@@ -115,7 +115,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 4.1, 4.5_
   - _Prompt: Role: Docker Engineer with expertise in container orchestration | Task: Update Docker Compose configuration following requirements 4.1 and 4.5, optimizing for launcher functionality without legacy constraints | Restrictions: Focus on optimal configuration, ensure secure volume mounting, optimize for development and production | Success: Docker configuration supports all launcher features, efficient and secure setup_
 
-- [ ] 14. Update Dockerfile for modern dependencies
+- [x] 14. Update Dockerfile for modern dependencies
   - File: Dockerfile (modify)
   - Add Claude Code CLI installation and TTY dependencies
   - Optimize container build for launcher functionality
