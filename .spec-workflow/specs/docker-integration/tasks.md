@@ -4,7 +4,7 @@
 _Prompt: Role: [specialized developer role] | Task: [clear task description with context references] | Restrictions: [what not to do, constraints] | Success: [specific completion criteria]_
 This helps provide better AI agent guidance beyond simple "work on this task" prompts. -->
 
-- [-] 1. Create Claude Code launcher type definitions
+- [x] 1. Create Claude Code launcher type definitions
   - File: lib/types/launcher.ts
   - Define comprehensive TypeScript interfaces for launcher config, instance info, TCP commands, and installation status
   - Create modern, clean interfaces optimized for Docker integration
@@ -12,7 +12,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1, 6.1_
   - _Prompt: Role: TypeScript Developer specializing in modern type systems | Task: Create comprehensive TypeScript interfaces for Claude Code launcher following requirements 1.1 and 6.1, designing clean, modern interfaces optimized for Docker integration without legacy constraints | Restrictions: Focus on optimal design, no need to maintain backward compatibility, use modern TypeScript features | Success: All interfaces are well-designed and compile without errors, full type coverage for launcher requirements with modern TypeScript practices_
 
-- [ ] 2. Implement Claude Code CLI installer service
+- [x] 2. Implement Claude Code CLI installer service
   - File: lib/services/claude-installer.ts
   - Create service to detect, install, and validate Claude Code CLI within the Next.js container
   - Add authentication status checking and MCP tools installation
