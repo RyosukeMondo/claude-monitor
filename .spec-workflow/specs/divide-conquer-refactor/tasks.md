@@ -34,7 +34,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 3.1, 3.2_
   - _Prompt: Role: Backend Developer with expertise in Node.js file system operations and real-time monitoring | Task: Implement robust file system monitoring following requirements 3.1 and 3.2, converting Python file monitoring logic from src/parsing/log_parser.py LogFileMonitor to TypeScript | Restrictions: Must handle file permission errors gracefully, avoid polling when possible, maintain memory efficiency with large file counts | Success: File monitoring works reliably across platforms, path encoding/decoding matches Python implementation, handles edge cases gracefully_
 
-- [ ] 4. Create JSONL event parser service
+- [x] 4. Create JSONL event parser service
   - File: app/lib/services/event-parser.ts
   - Parse JSONL lines into TypeScript objects with validation
   - Extract commands and tool calls from message content
@@ -44,7 +44,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 4.1, 4.2_
   - _Prompt: Role: Data Processing Engineer with expertise in JSON parsing and validation | Task: Implement robust JSONL event parser following requirements 4.1 and 4.2, converting Python parsing logic from src/parsing/log_parser.py LogLine class to TypeScript with Zod validation | Restrictions: Must validate all input data, handle malformed JSON gracefully, maintain parsing performance with large files | Success: Parser handles all JSONL formats correctly, validation catches invalid data, command extraction matches Python implementation accuracy_
 
-- [ ] 5. Implement state detection algorithms
+- [x] 5. Implement state detection algorithms
   - File: app/lib/services/state-detector.ts
   - Analyze conversation events to determine Claude's state
   - Implement confidence scoring and transition detection
