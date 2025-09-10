@@ -57,7 +57,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.1, 2.2, 2.4_
   - _Prompt: Role: API Developer with expertise in modern Next.js App Router and REST design | Task: Create launcher management API endpoints following requirements 2.1, 2.2, and 2.4, implementing modern RESTful patterns with comprehensive validation | Restrictions: Use contemporary API design patterns, implement proper error handling, focus on developer experience | Success: API provides excellent developer experience, comprehensive error handling, follows modern REST conventions_
 
-- [ ] 7. Create command forwarding API
+- [x] 7. Create command forwarding API
   - File: api/launcher/instances/[id]/commands/route.ts
   - Implement endpoint for sending commands to instances via TCP bridge
   - Add modern validation, rate limiting, and security measures
@@ -66,7 +66,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.2_
   - _Prompt: Role: API Security Specialist with expertise in command interfaces | Task: Implement command forwarding API following requirement 1.2, creating secure interface with modern validation and rate limiting | Restrictions: Implement comprehensive security measures, validate all commands, use modern rate limiting patterns | Success: Command API is secure and efficient, proper validation prevents abuse, excellent error handling_
 
-- [ ] 8. Create modern JSONL monitoring integration
+- [x] 8. Create modern JSONL monitoring integration
   - File: lib/services/launcher-monitor.ts
   - Create new monitoring service specifically for launcher-created sessions
   - Design clean integration with JSONL file monitoring
