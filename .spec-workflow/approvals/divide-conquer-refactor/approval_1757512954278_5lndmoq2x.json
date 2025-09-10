@@ -1,0 +1,21 @@
+{
+  "id": "approval_1757512954278_5lndmoq2x",
+  "title": "Tasks: Next.js Implementation Breakdown",
+  "filePath": ".spec-workflow/specs/divide-conquer-refactor/tasks.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-10T14:02:34.278Z",
+  "category": "spec",
+  "categoryName": "divide-conquer-refactor",
+  "response": "Feedback Summary (1 comments):\n\nGeneral Comments:\n1. have clear reference of python code for each tasks to make sure refer collect knowledge, implementation.\n\ncreate under app folder. every path for next.js with prefix app.\n\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"general\",\n      \"comment\": \"have clear reference of python code for each tasks to make sure refer collect knowledge, implementation.\\n\\ncreate under app folder. every path for next.js with prefix app.\",\n      \"timestamp\": \"2025-09-10T14:08:06.082Z\",\n      \"id\": \"comment_1757513286082_meuylle10\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nGeneral Comments:\\n1. have clear reference of python code for each tasks to make sure refer collect knowledge, implementation.\\n\\ncreate under app folder. every path for next.js with prefix app.\\n\\n\",\n  \"timestamp\": \"2025-09-10T14:08:07.618Z\"\n}",
+  "respondedAt": "2025-09-10T14:08:07.672Z",
+  "comments": [
+    {
+      "type": "general",
+      "comment": "have clear reference of python code for each tasks to make sure refer collect knowledge, implementation.\n\ncreate under app folder. every path for next.js with prefix app.",
+      "timestamp": "2025-09-10T14:08:06.082Z",
+      "id": "comment_1757513286082_meuylle10"
+    }
+  ]
+}

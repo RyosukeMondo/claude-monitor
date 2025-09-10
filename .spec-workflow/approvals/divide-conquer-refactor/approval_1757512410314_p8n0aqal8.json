@@ -1,0 +1,21 @@
+{
+  "id": "approval_1757512410314_p8n0aqal8",
+  "title": "Design: Divide and Conquer Refactor",
+  "filePath": ".spec-workflow/specs/divide-conquer-refactor/design.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-10T13:53:30.314Z",
+  "category": "spec",
+  "categoryName": "divide-conquer-refactor",
+  "response": "Feedback Summary (1 comments):\n\nGeneral Comments:\n1. I want to use next.js as full stack application framework.\nsince we can use jsonl file claude code output, we can way more simplify implementation, while receivnig productivity of next.js, typescript, react, other modern web browser feature.\nI want to start over application from python, use it as poc project, extract working pattern, knowledge, how, into next.js, clear, sophisticated system. please revise from spec.\n\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"general\",\n      \"comment\": \"I want to use next.js as full stack application framework.\\nsince we can use jsonl file claude code output, we can way more simplify implementation, while receivnig productivity of next.js, typescript, react, other modern web browser feature.\\nI want to start over application from python, use it as poc project, extract working pattern, knowledge, how, into next.js, clear, sophisticated system. please revise from spec.\",\n      \"timestamp\": \"2025-09-10T13:57:43.915Z\",\n      \"id\": \"comment_1757512663915_kskrnurky\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nGeneral Comments:\\n1. I want to use next.js as full stack application framework.\\nsince we can use jsonl file claude code output, we can way more simplify implementation, while receivnig productivity of next.js, typescript, react, other modern web browser feature.\\nI want to start over application from python, use it as poc project, extract working pattern, knowledge, how, into next.js, clear, sophisticated system. please revise from spec.\\n\\n\",\n  \"timestamp\": \"2025-09-10T13:57:45.882Z\"\n}",
+  "respondedAt": "2025-09-10T13:57:46.211Z",
+  "comments": [
+    {
+      "type": "general",
+      "comment": "I want to use next.js as full stack application framework.\nsince we can use jsonl file claude code output, we can way more simplify implementation, while receivnig productivity of next.js, typescript, react, other modern web browser feature.\nI want to start over application from python, use it as poc project, extract working pattern, knowledge, how, into next.js, clear, sophisticated system. please revise from spec.",
+      "timestamp": "2025-09-10T13:57:43.915Z",
+      "id": "comment_1757512663915_kskrnurky"
+    }
+  ]
+}
