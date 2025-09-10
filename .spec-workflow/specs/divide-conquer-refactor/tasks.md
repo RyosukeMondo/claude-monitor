@@ -64,7 +64,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 6.1, 6.2_
   - _Prompt: Role: Integration Developer with expertise in API integration and command execution | Task: Implement recovery action service following requirements 6.1 and 6.2, converting Python recovery logic from src/recovery/ and src/decision/decision_engine.py to TypeScript with Claude Code SDK | Restrictions: Must validate recovery conditions before execution, handle API failures gracefully, maintain command execution security | Success: Recovery actions execute reliably, API integration works correctly, validation logic matches Python implementation_
 
-- [ ] 7. Set up WebSocket server for real-time updates
+- [x] 7. Set up WebSocket server for real-time updates
   - File: app/lib/websocket/server.ts, app/api/socket/route.ts
   - Implement Socket.IO server with Next.js API routes
   - Add event broadcasting for monitoring updates
@@ -74,7 +74,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 7.1_
   - _Prompt: Role: Real-time Systems Developer with expertise in WebSocket implementation and Next.js | Task: Implement WebSocket server for real-time monitoring updates following requirement 7.1, converting Python daemon real-time patterns from src/daemon.py main loop to TypeScript WebSocket implementation | Restrictions: Must handle connection management properly, ensure efficient event broadcasting, maintain connection stability | Success: WebSocket connections are stable, real-time updates work correctly, event frequency matches Python daemon loop timing_
 
-- [ ] 8. Create project monitoring dashboard
+- [x] 8. Create project monitoring dashboard
   - File: app/components/dashboard/project-monitor.tsx, app/dashboard/page.tsx
   - Build React component for multi-project monitoring
   - Add real-time status indicators and state visualization
@@ -84,7 +84,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 8.1, 8.2_
   - _Prompt: Role: Frontend Developer specializing in React dashboards and data visualization | Task: Create comprehensive project monitoring dashboard following requirements 8.1 and 8.2, converting Python monitoring display logic from src/daemon.py statistics and status reporting to React components | Restrictions: Must maintain responsive design, ensure accessibility compliance, handle real-time data efficiently | Success: Dashboard displays project status clearly matching Python daemon output, real-time updates work smoothly, user experience is intuitive and responsive_
 
-- [ ] 9. Implement session viewer component
+- [x] 9. Implement session viewer component
   - File: app/components/dashboard/session-viewer.tsx, app/sessions/[id]/page.tsx
   - Create detailed conversation event timeline
   - Add event filtering and search capabilities
