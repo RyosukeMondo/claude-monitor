@@ -71,6 +71,64 @@ export {
   ProjectInfoSchema
 } from './project';
 
+export type {
+  LauncherConfig,
+  InstanceStatus,
+  InstanceInfo,
+  TCPCommandType,
+  TCPCommand,
+  TCPResponse,
+  AuthStatus,
+  InstallationStatus,
+  BridgeServerInfo,
+  InstanceHealth,
+  LauncherHealthReport,
+  LauncherEventType,
+  LauncherEvent,
+  DockerContainerInfo,
+  CreateInstanceRequest,
+  CreateInstanceResponse,
+  SendCommandRequest,
+  ListInstancesResponse,
+  LauncherConfigOptions,
+  InstanceCreateOptions,
+  TCPCommandWithCallback,
+  LauncherServiceConfig
+} from './launcher';
+
+export {
+  LauncherConfigSchema,
+  InstanceStatusSchema,
+  InstanceInfoSchema,
+  TCPCommandTypeSchema,
+  TCPCommandSchema,
+  TCPResponseSchema,
+  AuthStatusSchema,
+  InstallationStatusSchema,
+  BridgeServerInfoSchema,
+  InstanceHealthSchema,
+  LauncherHealthReportSchema,
+  LauncherEventTypeSchema,
+  LauncherEventSchema,
+  DockerContainerInfoSchema,
+  CreateInstanceRequestSchema,
+  CreateInstanceResponseSchema,
+  SendCommandRequestSchema,
+  ListInstancesResponseSchema,
+  validateLauncherConfig,
+  validateInstanceInfo,
+  validateTCPCommand,
+  validateInstallationStatus,
+  validateLauncherEvent,
+  isInstanceInfo,
+  isTCPCommand,
+  isLauncherEvent,
+  DEFAULT_LAUNCHER_CONFIG,
+  TCP_COMMAND_TIMEOUT,
+  INSTANCE_STARTUP_TIMEOUT,
+  HEALTH_CHECK_INTERVAL
+} from './launcher';
+
 // Import required types and schemas
 import type {
   LogLine,
@@ -174,12 +232,35 @@ export const isProjectInfo = (obj: unknown): obj is ProjectInfo => {
   }
 };
 
+export const isLauncherConfig = (obj: unknown): obj is LauncherConfig => {
+  try {
+    LauncherConfigSchema.parse(obj);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const isInstallationStatus = (obj: unknown): obj is InstallationStatus => {
+  try {
+    InstallationStatusSchema.parse(obj);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // Validation helper functions
 export const validateLogLine = (obj: unknown) => LogLineSchema.safeParse(obj);
 export const validateConversationEvent = (obj: unknown) => ConversationEventSchema.safeParse(obj);
 export const validateStateAnalysis = (obj: unknown) => StateAnalysisSchema.safeParse(obj);
 export const validateProjectInfo = (obj: unknown) => ProjectInfoSchema.safeParse(obj);
 export const validateJSONLProcessingResult = (obj: unknown) => JSONLProcessingResultSchema.safeParse(obj);
+export const validateLauncherConfig = (obj: unknown) => LauncherConfigSchema.safeParse(obj);
+export const validateInstanceInfo = (obj: unknown) => InstanceInfoSchema.safeParse(obj);
+export const validateTCPCommand = (obj: unknown) => TCPCommandSchema.safeParse(obj);
+export const validateInstallationStatus = (obj: unknown) => InstallationStatusSchema.safeParse(obj);
+export const validateLauncherEvent = (obj: unknown) => LauncherEventSchema.safeParse(obj);
 
 // Re-export important imports for convenience
 export { z } from 'zod';
