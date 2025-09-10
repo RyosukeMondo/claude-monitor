@@ -20,7 +20,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 4.2, 4.3, 6.1_
   - _Prompt: Role: Node.js Developer with expertise in CLI installation and container environments | Task: Implement Claude Code CLI installation service following requirements 4.2, 4.3, and 6.1, creating a clean, modern implementation for container environments | Restrictions: Focus on reliable installation, handle failures gracefully, use modern async/await patterns | Success: Service reliably installs Claude Code CLI in container, handles authentication requirements, provides clear status reporting_
 
-- [ ] 3. Implement TTY bridge service (choose optimal approach)
+- [x] 3. Implement TTY bridge service (choose optimal approach)
   - File: lib/services/tty-bridge.ts
   - Evaluate and implement best approach for TTY interaction: node-pty (recommended) or hybrid expect
   - Implement command parsing and validation for supported operations (send, enter, up, down, ctrl-c, tab)
@@ -31,7 +31,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
     - _Alternative: Hybrid with existing expect scripts if needed_
   - _Prompt: Role: Systems Developer with expertise in TTY handling and modern Node.js | Task: Implement TTY bridge service following requirements 1.1 and 1.2, choosing the most optimal approach (preferably node-pty) for reliable terminal interaction with Claude Code | Restrictions: Focus on reliability and maintainability, use modern async patterns, ensure proper TTY handling | Success: TTY bridge reliably forwards commands with proper terminal handling, chosen approach is sustainable and performant_
 
-- [ ] 4. Create TCP command server
+- [x] 4. Create TCP command server
   - File: lib/services/tcp-server.ts
   - Implement modern TCP server that accepts commands and forwards to TTY bridge
   - Add connection management, rate limiting, and proper error handling
