@@ -1,0 +1,7 @@
+venv
+
+*.pyc
+*.log
+
+# ignore py cache
+__pycache__

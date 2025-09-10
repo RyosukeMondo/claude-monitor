@@ -114,7 +114,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
 
 ## Testing and Quality Assurance
 
-- [ ] 12. Create unit tests in tests/unit/
+- [-] 12. Create unit tests in tests/unit/
   - File: tests/unit/test_config.py
   - File: tests/unit/test_log_parser.py
   - File: tests/unit/test_state_detector.py
