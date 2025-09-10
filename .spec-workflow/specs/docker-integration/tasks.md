@@ -40,7 +40,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1, 1.2_
   - _Prompt: Role: Network Programming Specialist with expertise in modern Node.js TCP servers | Task: Create TCP server for command interface following requirements 1.1 and 1.2, implementing modern connection management and rate limiting | Restrictions: Use modern Node.js patterns, ensure security, implement proper rate limiting | Success: TCP server handles commands efficiently, forwards to TTY bridge reliably, manages multiple connections safely_
 
-- [ ] 5. Implement Claude Code launcher orchestrator
+- [x] 5. Implement Claude Code launcher orchestrator
   - File: lib/services/claude-launcher.ts
   - Create main launcher service that orchestrates Claude Code process lifecycle
   - Integrate TTY bridge and TCP server with process management
@@ -49,7 +49,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1, 1.3, 1.6_
   - _Prompt: Role: Backend Architect with expertise in process orchestration and modern service design | Task: Implement Claude launcher orchestrator following requirements 1.1, 1.3, and 1.6, creating a modern service architecture for process lifecycle management | Restrictions: Use modern design patterns, focus on reliability and observability, implement proper process isolation | Success: Launcher orchestrates all components reliably, provides comprehensive monitoring and error recovery_
 
-- [ ] 6. Create modern launcher API endpoints
+- [x] 6. Create modern launcher API endpoints
   - File: api/launcher/instances/route.ts
   - Implement clean RESTful endpoints for instance management (GET, POST, DELETE)
   - Use modern validation with Zod and contemporary API patterns

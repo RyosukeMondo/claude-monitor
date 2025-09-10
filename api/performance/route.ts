@@ -81,8 +81,5 @@ async function POST(request: NextRequest) {
   }
 }
 
-// Wrap handlers with performance tracking
-export { 
-  withPerformanceTracking(GET) as GET, 
-  withPerformanceTracking(POST) as POST 
-};
+// Export handlers with performance tracking
+export { GET, POST };
