@@ -104,7 +104,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 10.1, 10.2_
   - _Prompt: Role: UX Developer with expertise in interactive interfaces and form handling | Task: Build intuitive recovery controls interface following requirements 10.1 and 10.2, converting Python recovery trigger logic from src/decision/decision_engine.py to React form components | Restrictions: Must prevent accidental actions, validate all user inputs, provide clear feedback on actions | Success: Controls are intuitive and safe to use, validation prevents invalid actions matching Python validation logic, user feedback is clear and helpful_
 
-- [ ] 11. Set up database with Prisma
+- [x] 11. Set up database with Prisma
   - File: app/lib/database/schema.prisma, app/lib/database/client.ts
   - Define database schema for session persistence
   - Configure Prisma ORM with Next.js integration
@@ -114,7 +114,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 11.1_
   - _Prompt: Role: Database Engineer with expertise in Prisma ORM and data modeling | Task: Set up database schema and Prisma integration following requirement 11.1, converting Python session data structures from src/daemon.py statistics and tracking variables to Prisma schema | Restrictions: Must maintain data consistency, follow Prisma best practices, ensure migration compatibility | Success: Database schema supports all required operations matching Python data structures, Prisma integration is properly configured, queries are type-safe and efficient_
 
-- [ ] 12. Create API routes for monitoring operations
+- [x] 12. Create API routes for monitoring operations
   - File: app/api/projects/route.ts, app/api/sessions/route.ts, app/api/recovery/route.ts
   - Implement RESTful API endpoints for project management
   - Add request validation and error handling
