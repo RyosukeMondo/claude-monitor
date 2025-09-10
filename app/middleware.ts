@@ -197,7 +197,7 @@ function validateRequest(request: NextRequest): { valid: boolean; error?: string
  * Check if the request requires authentication
  */
 function requiresAuth(pathname: string): boolean {
-  const publicPaths = ['/api/health', '/api/auth/login'];
+  const publicPaths = ['/api/health', '/api/auth/login', '/login'];
   const staticPaths = ['/_next', '/favicon.ico'];
   
   // Allow public paths and static assets
@@ -227,7 +227,6 @@ function validateAuthToken(request: NextRequest): { valid: boolean; error?: stri
   
   try {
     // Simple token validation - in production, use JWT verification
-    const authConfig = getAuthConfig();
     
     if (token.length < 32) {
       return { valid: false, error: 'Invalid token format' };
@@ -238,6 +237,7 @@ function validateAuthToken(request: NextRequest): { valid: boolean; error?: stri
     
     return { valid: true };
   } catch (error) {
+    console.error('Token validation error:', error);
     return { valid: false, error: 'Invalid token' };
   }
 }

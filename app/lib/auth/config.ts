@@ -142,8 +142,23 @@ export class AuthConfigManager {
       );
     }
     
-    const crypto = require('crypto');
-    return crypto.randomBytes(32).toString('hex');
+    // Use Web Crypto API (Edge/runtime safe). Fallbacks are avoided to keep Edge compatibility.
+    // This will work in Next.js middleware (Edge) and modern browsers/runtimes.
+    // Properly typed access to globalThis.crypto to satisfy TypeScript linting
+    const webCrypto: Crypto | undefined = (globalThis as unknown as { crypto?: Crypto }).crypto;
+    if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(32);
+      webCrypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    // As a last resort (e.g., extremely constrained environments), generate a less ideal
+    // random value using Math.random (should rarely happen in practice). Since this code
+    // only runs in non-production per the guard above, it is acceptable for dev.
+    const bytes = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256));
+    return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
   
   public getConfig(): SecurityConfig {

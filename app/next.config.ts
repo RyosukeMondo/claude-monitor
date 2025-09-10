@@ -9,31 +9,13 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   serverExternalPackages: ["chokidar", "pino"],
 
-  // Webpack optimizations
-  webpack: (config, { isServer }) => {
-    // Optimize bundle size
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        os: false,
-      };
-    }
+  // Allow additional dev origins to request internal assets/endpoints
+  // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  allowedDevOrigins: [
+    "172.31.187.253",
+  ],
 
-    // Optimize for file system watching libraries
-    config.externals = config.externals || [];
-    if (isServer) {
-      config.externals.push("chokidar");
-    }
-
-    return config;
-  },
-
-  // Environment variables that should be available to the client
-  env: {
-    NODE_ENV: process.env.NODE_ENV,
-  },
+  // Turbopack-friendly config: no custom Webpack overrides
 
   // Headers for security and performance
   async headers() {
