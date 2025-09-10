@@ -54,7 +54,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 5.1, 5.2_
   - _Prompt: Role: Software Engineer specializing in state machines and pattern recognition | Task: Implement intelligent state detection algorithms following requirements 5.1 and 5.2, converting Python state detection from src/detection/state_detector.py ClaudeState and StateDetection to TypeScript | Restrictions: Must maintain high accuracy in state detection, avoid false positives, handle edge cases in conversation flow | Success: State detection accuracy matches Python implementation, confidence scores reflect actual certainty, state transitions are detected correctly_
 
-- [ ] 6. Create recovery action service
+- [x] 6. Create recovery action service
   - File: app/lib/services/recovery-actions.ts
   - Implement Claude Code SDK integration for command execution
   - Add recovery action validation and execution
