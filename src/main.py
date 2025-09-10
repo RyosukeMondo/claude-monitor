@@ -96,6 +96,14 @@ class ClaudeMonitorDaemon:
         except Exception:
             self._decision_min_interval_sec = 5.0
         self._last_decision_ts: Optional[float] = None
+        # Track whether we've sent an idle-period /clear since the last non-IDLE state
+        self._idle_period_cleared: bool = False
+        # Fallback window to bypass waiting for explicit /clear completion before prompting
+        try:
+            self._clear_completion_fallback_sec: float = float(os.environ.get('CLAUDE_MONITOR_CLEAR_COMPLETION_FALLBACK_SEC') or \
+                self.config.get('monitoring', {}).get('clear_completion_fallback_sec', 30.0))
+        except Exception:
+            self._clear_completion_fallback_sec = 30.0
         # Require several consecutive detections before acting to avoid flapping
         try:
             self._consec_idle_required: int = int(os.environ.get('CLAUDE_MONITOR_CONSEC_IDLE_REQUIRED') or \
@@ -591,10 +599,13 @@ class ClaudeMonitorDaemon:
                                     elif detection.state == ClaudeState.ACTIVE:
                                         self._consec_active_count += 1
                                         self._consec_idle_count = 0
+                                        # Reset idle-period clear gating on any non-IDLE state
+                                        self._idle_period_cleared = False
                                     else:
-                                        # Reset on other states
+                                        # Reset on other non-IDLE states as well
                                         self._consec_idle_count = 0
                                         self._consec_active_count = 0
+                                        self._idle_period_cleared = False
                                 except Exception:
                                     pass
 
@@ -613,7 +624,7 @@ class ClaudeMonitorDaemon:
                                     self.logger.debug(f"Throttling recovery for state {detection.state}: last {now - last_ts:.2f}s ago")
                                     return
 
-                                # Handle IDLE in two phases: first /clear on transition, then prompt on next idle
+                                # Handle IDLE in two phases within an idle period: first /clear once, then prompt
                                 if detection.state == ClaudeState.IDLE:
                                     # Wait for multiple consecutive IDLE detections to consider it truly inactive
                                     if self._consec_idle_count < max(1, self._consec_idle_required):
@@ -634,8 +645,8 @@ class ClaudeMonitorDaemon:
                                                   self.config.get('monitoring', {}).get('spec_name', '')
 
                                     now_ts = time.time()
-                                    # Phase 1: if we just transitioned into IDLE, send /clear once
-                                    if (self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap) and not self._bootstrap_cleared:
+                                    # Phase 1: ensure we send /clear once per idle period after confirmations
+                                    if (not self._idle_period_cleared or self._pending_bootstrap) and not self._bootstrap_cleared:
                                         clear_context = dict(recovery_context)
                                         clear_context.update({
                                             'should_send_idle_clear': True
@@ -645,6 +656,7 @@ class ClaudeMonitorDaemon:
                                         if execution:
                                             self._stats['total_recoveries'] += 1
                                             self._last_idle_clear_at = now_ts
+                                            self._idle_period_cleared = True
                                             self.logger.info("Idle clear sent via recovery engine (/clear)")
                                             # Mark bootstrap clear phase completed if we are bootstrapping
                                             if self._pending_bootstrap:
@@ -663,8 +675,15 @@ class ClaudeMonitorDaemon:
                                             should_send_prompt = False
                                         # If we sent a clear recently, require explicit or inferred clear completion before prompting
                                         if self._last_idle_clear_at and (not self._clear_completed_at or self._clear_completed_at < self._last_idle_clear_at):
-                                            should_send_prompt = False
-                                            self.logger.info("Decision: not sending prompt yet (awaiting /clear completion)")
+                                            # Allow bypass after fallback timeout
+                                            age = now_ts - self._last_idle_clear_at
+                                            if age >= self._clear_completion_fallback_sec:
+                                                self.logger.info(
+                                                    f"Bypassing /clear completion wait after {age:.1f}s (fallback {self._clear_completion_fallback_sec:.1f}s)"
+                                                )
+                                            else:
+                                                should_send_prompt = False
+                                                self.logger.info("Decision: not sending prompt yet (awaiting /clear completion)")
                                         # If we are in bootstrap flow, require that we observed clear completion before prompting
                                         if self._pending_bootstrap and not self._bootstrap_cleared:
                                             should_send_prompt = False
@@ -1033,8 +1052,8 @@ class ClaudeMonitorDaemon:
                             return
 
                         now_ts2 = time.time()
-                        # Phase 1: send /clear on transition into IDLE (or during bootstrap)
-                        if (self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap) and not self._bootstrap_cleared:
+                        # Phase 1: ensure /clear has been sent once for this idle period (or during bootstrap)
+                        if (not self._idle_period_cleared or self._pending_bootstrap) and not self._bootstrap_cleared:
                             clear_context = {
                                 'detection_confidence': detection.confidence,
                                 'detection_evidence': detection.evidence,
@@ -1046,6 +1065,7 @@ class ClaudeMonitorDaemon:
                             if execution:
                                 self._stats['total_recoveries'] += 1
                                 self._last_idle_clear_at = now_ts2
+                                self._idle_period_cleared = True
                                 if self._pending_bootstrap:
                                     self._bootstrap_cleared = True
                             self._last_detected_state = ClaudeState.IDLE
@@ -1059,8 +1079,15 @@ class ClaudeMonitorDaemon:
                             if self._last_idle_clear_at and (now_ts2 - self._last_idle_clear_at) < 1.0:
                                 should_send_prompt = False
                             if self._last_idle_clear_at and (not self._clear_completed_at or self._clear_completed_at < self._last_idle_clear_at):
-                                should_send_prompt = False
-                                self.logger.info("Decision: not sending prompt yet (awaiting /clear completion) [inactivity]")
+                                # Allow bypass after fallback timeout
+                                age = now_ts2 - self._last_idle_clear_at
+                                if age >= self._clear_completion_fallback_sec:
+                                    self.logger.info(
+                                        f"Bypassing /clear completion wait after {age:.1f}s (fallback {self._clear_completion_fallback_sec:.1f}s) [inactivity]"
+                                    )
+                                else:
+                                    should_send_prompt = False
+                                    self.logger.info("Decision: not sending prompt yet (awaiting /clear completion) [inactivity]")
                             if self._pending_bootstrap and not self._bootstrap_cleared:
                                 should_send_prompt = False
 
