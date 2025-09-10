@@ -17,6 +17,7 @@ import argparse
 import subprocess
 import signal
 from pathlib import Path
+from pathlib import Path
 import time
 import yaml
 
@@ -220,7 +221,8 @@ def show_status():
     
     # Check if daemon is running
     try:
-        pid_file = Path('/var/run/claude-monitor.pid')
+        script_dir = find_script_directory()
+        pid_file = (script_dir / 'logs' / 'claude-monitor.pid')
         if pid_file.exists():
             with open(pid_file, 'r') as f:
                 pid = f.read().strip()
