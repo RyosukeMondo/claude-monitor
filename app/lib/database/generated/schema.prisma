@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/database/generated"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Session tracking data model (based on Python daemon session variables)
+model MonitorSession {
+  id                  String    @id @default(cuid())
+  startTime           DateTime  @default(now())
+  endTime             DateTime?
+  lastDetectedState   String    @default("UNKNOWN") // ClaudeState enum values
+  lastIdleClearAt     DateTime?
+  lastIdlePromptAt    DateTime?
+  pendingBootstrap    Boolean   @default(false)
+  clearCompletedAt    DateTime?
+  bootstrapCleared    Boolean   @default(false)
+  lastActiveSeenAt    DateTime?
+  lastPostrunActionAt DateTime?
+  lastDecisionTs      DateTime?
+  idlePeriodCleared   Boolean   @default(false)
+  consecIdleCount     Int       @default(0)
+  consecActiveCount   Int       @default(0)
+  configPath          String?
+  debugMode           Boolean   @default(false)
+
+  // Relationships
+  statistics      DaemonStatistics?
+  components      ComponentStatus[]
+  recoveryActions RecoveryAction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("monitor_sessions")
+}
+
+// Daemon statistics model (based on Python _stats dict)
+model DaemonStatistics {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  startTime       DateTime
+  uptimeSeconds   Float    @default(0)
+  restarts        Int      @default(0)
+  configReloads   Int      @default(0)
+  totalDetections Int      @default(0)
+  totalRecoveries Int      @default(0)
+  errors          Int      @default(0)
+
+  // Configuration parameters
+  decisionMinIntervalSec     Float @default(5.0)
+  clearCompletionFallbackSec Float @default(30.0)
+  consecIdleRequired         Int   @default(3)
+  inactivityIdleSec          Float @default(5.0)
+  minRecoveryIntervalSec     Float @default(2.0)
+
+  // Relationship
+  session MonitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daemon_statistics")
+}
+
+// Component status tracking
+model ComponentStatus {
+  id         String    @id @default(cuid())
+  sessionId  String
+  name       String // Component name (e.g., 'notifier', 'log_monitor')
+  status     String // Current status
+  isRunning  Boolean   @default(false)
+  startedAt  DateTime?
+  stoppedAt  DateTime?
+  lastError  String?
+  statistics Json? // Store component-specific statistics as JSON
+
+  // Relationship
+  session MonitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, name])
+  @@map("component_status")
+}
+
+// Recovery actions log (based on recovery throttling by state)
+model RecoveryAction {
+  id             String    @id @default(cuid())
+  sessionId      String
+  state          String // State that triggered recovery
+  actionType     String // Type of recovery action taken
+  timestamp      DateTime  @default(now())
+  success        Boolean   @default(true)
+  errorMessage   String?
+  throttledUntil DateTime? // When this state can be recovered again
+
+  // Relationship
+  session MonitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("recovery_actions")
+}
+
+// Configuration history
+model ConfigurationHistory {
+  id           String   @id @default(cuid())
+  configPath   String?
+  configHash   String // Hash of config content for change detection
+  configData   Json // Store full config as JSON
+  loadedAt     DateTime @default(now())
+  isActive     Boolean  @default(true)
+  errorMessage String? // If config failed to load
+
+  @@map("configuration_history")
+}
