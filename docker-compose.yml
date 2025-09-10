@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Next.js Application
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: claude-monitor-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./prisma/dev.db
+      - CLAUDE_MONITOR_LOG_LEVEL=INFO
+      - CLAUDE_MONITOR_LOG_CONSOLE=true
+    volumes:
+      # Mount Claude projects directory for monitoring
+      - ~/.claude:/app/.claude:ro
+      # Mount database for persistence
+      - claude_monitor_data:/app/data
+      # Mount logs directory
+      - claude_monitor_logs:/app/logs
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (for production)
+  db:
+    image: postgres:16-alpine
+    container_name: claude-monitor-db
+    environment:
+      - POSTGRES_DB=claude_monitor
+      - POSTGRES_USER=claude_monitor
+      - POSTGRES_PASSWORD=claude_monitor_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./app/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claude_monitor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and real-time features (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: claude-monitor-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  claude_monitor_data:
+    driver: local
+  claude_monitor_logs:
+    driver: local
+
+networks:
+  default:
+    name: claude-monitor-network

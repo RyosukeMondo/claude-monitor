@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Development overrides for Next.js app
+  app:
+    build:
+      target: base  # Use base stage for development
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=file:./prisma/dev.db
+      - CLAUDE_MONITOR_LOG_LEVEL=DEBUG
+      - CLAUDE_MONITOR_LOG_CONSOLE=true
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+      - "3001:3001"  # For Next.js dev server
+
+  # Use SQLite for development (simpler setup)
+  db:
+    image: alpine:latest
+    container_name: claude-monitor-dev-db
+    command: tail -f /dev/null
+    volumes:
+      - ./app/prisma:/prisma
+
+# Remove Redis in development to keep it simple
+# Remove PostgreSQL data volume in development
