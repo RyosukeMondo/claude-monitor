@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getDatabase } from '../../lib/database/client';
+import { prisma } from '../../lib/database/client';
 
 // Validation schemas using Zod
 const SessionRequestSchema = z.object({
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { projectPath, projectId, isActive, limit, offset, sortBy, sortOrder } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Build where clause for filtering
     const whereClause: any = {};
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { sessionId, projectPath, jsonlFilePath, isActive, metadata } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Find the project
     const project = await db.project.findUnique({
@@ -276,7 +276,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const { id, isActive, eventCount, lastActivity, metadata } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if session exists
     const existingSession = await db.session.findUnique({
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { sessionId } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if session exists
     const existingSession = await db.session.findUnique({

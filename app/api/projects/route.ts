@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getDatabase } from '../../lib/database/client';
+import { prisma } from '../../lib/database/client';
 
 // Validation schemas using Zod
 const ProjectRequestSchema = z.object({
@@ -49,7 +49,7 @@ const ProjectDeleteSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const db = await getDatabase();
+    const db = prisma;
     
     // Get projects with their session counts and recent activity
     const projects = await db.project.findMany({
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { projectPath, displayName, monitoring, recoverySettings } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if project already exists
     const existingProject = await db.project.findUnique({
@@ -205,7 +205,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const { id, displayName, monitoring, recoverySettings } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if project exists
     const existingProject = await db.project.findUnique({
@@ -292,7 +292,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { projectPath } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if project exists
     const existingProject = await db.project.findUnique({

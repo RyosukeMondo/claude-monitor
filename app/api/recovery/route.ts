@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getDatabase } from '../../lib/database/client';
+import { prisma } from '../../lib/database/client';
 import { executeRecoveryAction, validateRecoveryConditions } from '../../lib/services/recovery-actions';
 
 // Validation schemas using Zod
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { projectPath, projectId, limit, offset, status, actionType } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Build where clause for filtering
     const whereClause: any = {};
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { projectPath, action, command, parameters, force, timeout } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Find the project
     const project = await db.project.findUnique({
@@ -379,7 +379,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const { projectPath, recoverySettings } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Check if project exists
     const existingProject = await db.project.findUnique({
@@ -447,7 +447,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { projectPath, actionId } = validationResult.data;
-    const db = await getDatabase();
+    const db = prisma;
 
     // Find the project
     const project = await db.project.findUnique({
