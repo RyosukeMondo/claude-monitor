@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import yaml
 from monitor_logging import get_logger, initialize_logging
 from parsing.log_parser import LogParser
-from detection.state_detector import StateDetector, ClaudeState
+from detection.state_detector import StateDetector, ClaudeState, StateDetection
 from recovery.recovery_engine import RecoveryEngine
 from tasks.task_monitor import TaskMonitor
 from notifications.notifier import Notifier
@@ -85,6 +85,31 @@ class ClaudeMonitorDaemon:
         self._clear_completed_at: Optional[float] = None
         # Track bootstrap clear phase to avoid repeated /clear
         self._bootstrap_cleared: bool = False
+        # Track last time ACTIVE was seen to implement KISS post-run behavior
+        self._last_active_seen_at: Optional[float] = None
+        # Track last time we ran automatic post-run clear/prompt to avoid duplicates
+        self._last_postrun_action_at: Optional[float] = None
+        # Throttle decision execution frequency (seconds). Bypass on state change.
+        try:
+            self._decision_min_interval_sec: float = float(os.environ.get('CLAUDE_MONITOR_DECISION_MIN_INTERVAL_SEC') or \
+                self.config.get('monitoring', {}).get('decisions_min_interval_sec', 5.0))
+        except Exception:
+            self._decision_min_interval_sec = 5.0
+        self._last_decision_ts: Optional[float] = None
+        # Require several consecutive detections before acting to avoid flapping
+        try:
+            self._consec_idle_required: int = int(os.environ.get('CLAUDE_MONITOR_CONSEC_IDLE_REQUIRED') or \
+                self.config.get('monitoring', {}).get('consecutive_idle_required', 3))
+        except Exception:
+            self._consec_idle_required = 3
+        self._consec_idle_count: int = 0
+        self._consec_active_count: int = 0
+        # Consider as IDLE if no new log output for this duration (seconds)
+        try:
+            self._inactivity_idle_sec: float = float(os.environ.get('CLAUDE_MONITOR_INACTIVITY_IDLE_SEC') or \
+                self.config.get('monitoring', {}).get('inactivity_idle_sec', 5.0))
+        except Exception:
+            self._inactivity_idle_sec = 5.0
         # Per-state recovery throttling (seconds)
         self._last_recovery_by_state: Dict[str, float] = {}
         self._min_recovery_interval_sec: float = 2.0
@@ -233,8 +258,8 @@ class ClaudeMonitorDaemon:
                                                             prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
                                                                           self.config.get('monitoring', {}).get('spec_name', '')
                                                             idle_prompt = (
-                                                                f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
-                                                                f"make commits after every task completion, then proceed till the last task completed."
+                                                                f"Please work on one remaining task for spec \"{prompt_spec or 'unknown'}\", "
+                                                                f"make commit after task completion and stop."
                                                             )
                                                             prompt_ctx = {
                                                                 'should_send_idle_prompt': True,
@@ -333,8 +358,8 @@ class ClaudeMonitorDaemon:
                                                 prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
                                                               self.config.get('monitoring', {}).get('spec_name', '')
                                                 idle_prompt = (
-                                                    f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
-                                                    f"make commits after every task completion, then proceed till the last task completed."
+                                                    f"Please work on one remaining task for spec \"{prompt_spec or 'unknown'}\", "
+                                                    f"make commit after task completion and stop."
                                                 )
                                                 prompt_ctx = {
                                                     'should_send_idle_prompt': True,
@@ -396,8 +421,8 @@ class ClaudeMonitorDaemon:
                                                         prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
                                                                       self.config.get('monitoring', {}).get('spec_name', '')
                                                         idle_prompt = (
-                                                            f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
-                                                            f"make commits after every task completion, then proceed till the last task completed."
+                                                            f"Please work on one remaining task for spec \"{prompt_spec or 'unknown'}\", "
+                                                            f"make commit after task completion and stop."
                                                         )
                                                         prompt_ctx = {
                                                             'should_send_idle_prompt': True,
@@ -489,8 +514,8 @@ class ClaudeMonitorDaemon:
                                                                 prompt_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
                                                                               self.config.get('monitoring', {}).get('spec_name', '')
                                                                 idle_prompt = (
-                                                                    f"Please work on remaining tasks for spec \"{prompt_spec or 'unknown'}\", "
-                                                                    f"make commits after every task completion, then proceed till the last task completed."
+                                                                    f"Please work on one remaining task for spec \"{prompt_spec or 'unknown'}\", "
+                                                                    f"make commit after task completion and stop."
                                                                 )
                                                                 prompt_ctx = {
                                                                     'should_send_idle_prompt': True,
@@ -544,6 +569,35 @@ class ClaudeMonitorDaemon:
                                     'timestamp': detection.timestamp,
                                 }
 
+                                # Throttle overall decision frequency to avoid spamming identical outcomes
+                                try:
+                                    now_ts_dec = time.time()
+                                    if (self._last_detected_state == detection.state and
+                                        self._decision_min_interval_sec > 0 and
+                                        self._last_decision_ts and
+                                        (now_ts_dec - self._last_decision_ts) < self._decision_min_interval_sec):
+                                        self.logger.debug(
+                                            f"Throttling decisions for state {detection.state} (last {now_ts_dec - self._last_decision_ts:.2f}s ago < {self._decision_min_interval_sec}s)"
+                                        )
+                                        return
+                                except Exception:
+                                    pass
+
+                                # Track consecutive detections to avoid rapid INACTIVE<->ACTIVE flicker
+                                try:
+                                    if detection.state == ClaudeState.IDLE:
+                                        self._consec_idle_count += 1
+                                        self._consec_active_count = 0
+                                    elif detection.state == ClaudeState.ACTIVE:
+                                        self._consec_active_count += 1
+                                        self._consec_idle_count = 0
+                                    else:
+                                        # Reset on other states
+                                        self._consec_idle_count = 0
+                                        self._consec_active_count = 0
+                                except Exception:
+                                    pass
+
                                 # Only trigger recovery for problematic states or for idle prompt
                                 recovery_states = {
                                     ClaudeState.CONTEXT_PRESSURE,
@@ -561,6 +615,18 @@ class ClaudeMonitorDaemon:
 
                                 # Handle IDLE in two phases: first /clear on transition, then prompt on next idle
                                 if detection.state == ClaudeState.IDLE:
+                                    # Wait for multiple consecutive IDLE detections to consider it truly inactive
+                                    if self._consec_idle_count < max(1, self._consec_idle_required):
+                                        self.logger.info(
+                                            f"Decision: waiting for consecutive idle confirmations ({self._consec_idle_count}/{self._consec_idle_required})"
+                                        )
+                                        # Update last state and decision timestamp then return early
+                                        self._last_detected_state = detection.state
+                                        try:
+                                            self._last_decision_ts = time.time()
+                                        except Exception:
+                                            pass
+                                        return
                                     # Read overrides from env or config
                                     current_project = os.environ.get('CLAUDE_MONITOR_PROJECT_PATH') or \
                                                      self.config.get('monitoring', {}).get('project_path', '')
@@ -595,6 +661,10 @@ class ClaudeMonitorDaemon:
                                         if self._last_idle_clear_at and (now_ts - self._last_idle_clear_at) < 1.0:
                                             # give a brief moment after clear
                                             should_send_prompt = False
+                                        # If we sent a clear recently, require explicit or inferred clear completion before prompting
+                                        if self._last_idle_clear_at and (not self._clear_completed_at or self._clear_completed_at < self._last_idle_clear_at):
+                                            should_send_prompt = False
+                                            self.logger.info("Decision: not sending prompt yet (awaiting /clear completion)")
                                         # If we are in bootstrap flow, require that we observed clear completion before prompting
                                         if self._pending_bootstrap and not self._bootstrap_cleared:
                                             should_send_prompt = False
@@ -602,8 +672,8 @@ class ClaudeMonitorDaemon:
                                         if should_send_prompt:
                                             prompt_spec = current_spec or 'unknown'
                                             idle_prompt = (
-                                                f"Please work on remaining tasks for spec \"{prompt_spec}\", "
-                                                f"make commits after every task completion, then proceed till the last task completed."
+                                                f"Please work on one remaining task for spec \"{prompt_spec}\", "
+                                                f"make commit after task completion and stop."
                                             )
                                             prompt_context = dict(recovery_context)
                                             prompt_context.update({
@@ -634,6 +704,11 @@ class ClaudeMonitorDaemon:
 
                             # Update last detected state for next cycle decisions
                             self._last_detected_state = detection.state
+                            # Update last decision timestamp at the end of processing this detection block
+                            try:
+                                self._last_decision_ts = time.time()
+                            except Exception:
+                                pass
                         
                     except Exception as e:
                         self.logger.error(f"Error processing log line in state detector: {e}")
@@ -908,6 +983,116 @@ class ClaudeMonitorDaemon:
                     self.logger.warning(f"Component {name} is not monitoring - attempting restart")
                     if hasattr(component, 'start_monitoring'):
                         component.start_monitoring()
+
+            # Inactivity-based IDLE fallback: if the log file has no new lines for N seconds,
+            # synthesize an IDLE detection to drive clear/prompt decisions.
+            try:
+                log_parser = self._components.get('log_parser')
+                state_detector = self._components.get('state_detector')
+                recovery_engine = self._components.get('recovery_engine')
+                if log_parser and state_detector and recovery_engine and self._inactivity_idle_sec > 0:
+                    stats = log_parser.get_statistics() if hasattr(log_parser, 'get_statistics') else {}
+                    last_act = stats.get('last_activity')
+                    now_ts = time.time()
+                    if last_act and (now_ts - last_act) >= self._inactivity_idle_sec:
+                        # Throttle decisions as usual if state hasn't changed
+                        if (self._last_detected_state == ClaudeState.IDLE and
+                            self._decision_min_interval_sec > 0 and
+                            self._last_decision_ts and
+                            (now_ts - self._last_decision_ts) < self._decision_min_interval_sec):
+                            return
+
+                        # Update consecutive counters
+                        self._consec_idle_count = min(self._consec_idle_count + 1, 1000)
+                        self._consec_active_count = 0
+
+                        # Build a synthetic detection object
+                        detection = StateDetection(
+                            state=ClaudeState.IDLE,
+                            confidence=0.9,
+                            evidence=["inactivity_timeout"],
+                            timestamp=datetime.now(),
+                            triggering_lines=[],
+                            metadata={"reason": "inactivity_idle"}
+                        )
+
+                        # Mirror the IDLE decision branch (respecting consecutive confirmations and clear/prompt rules)
+                        # Read overrides
+                        current_project = os.environ.get('CLAUDE_MONITOR_PROJECT_PATH') or \
+                                         self.config.get('monitoring', {}).get('project_path', '')
+                        current_spec = os.environ.get('CLAUDE_MONITOR_SPEC_NAME') or \
+                                      self.config.get('monitoring', {}).get('spec_name', '')
+
+                        # Require multiple consecutive IDLE detections
+                        if self._consec_idle_count < max(1, self._consec_idle_required):
+                            self.logger.info(
+                                f"Decision: waiting for consecutive idle confirmations ({self._consec_idle_count}/{self._consec_idle_required}) [inactivity]"
+                            )
+                            self._last_detected_state = ClaudeState.IDLE
+                            self._last_decision_ts = time.time()
+                            return
+
+                        now_ts2 = time.time()
+                        # Phase 1: send /clear on transition into IDLE (or during bootstrap)
+                        if (self._last_detected_state != ClaudeState.IDLE or self._pending_bootstrap) and not self._bootstrap_cleared:
+                            clear_context = {
+                                'detection_confidence': detection.confidence,
+                                'detection_evidence': detection.evidence,
+                                'timestamp': detection.timestamp,
+                                'should_send_idle_clear': True
+                            }
+                            self.logger.info("Decision: sending idle clear (/clear) [inactivity]")
+                            execution = recovery_engine.execute_recovery(detection, clear_context)
+                            if execution:
+                                self._stats['total_recoveries'] += 1
+                                self._last_idle_clear_at = now_ts2
+                                if self._pending_bootstrap:
+                                    self._bootstrap_cleared = True
+                            self._last_detected_state = ClaudeState.IDLE
+                            self._last_decision_ts = time.time()
+                            return
+                        else:
+                            # Phase 2: prompt (subject to cooldowns and clear completion)
+                            should_send_prompt = True
+                            if self._last_idle_prompt_at and (now_ts2 - self._last_idle_prompt_at) < recovery_engine.config.get('cooldown_period', 10.0):
+                                should_send_prompt = False
+                            if self._last_idle_clear_at and (now_ts2 - self._last_idle_clear_at) < 1.0:
+                                should_send_prompt = False
+                            if self._last_idle_clear_at and (not self._clear_completed_at or self._clear_completed_at < self._last_idle_clear_at):
+                                should_send_prompt = False
+                                self.logger.info("Decision: not sending prompt yet (awaiting /clear completion) [inactivity]")
+                            if self._pending_bootstrap and not self._bootstrap_cleared:
+                                should_send_prompt = False
+
+                            if should_send_prompt:
+                                idle_prompt = (
+                                    f"Please work on one remaining task for spec \"{current_spec or 'unknown'}\", "
+                                    f"make commit after task completion and stop."
+                                )
+                                prompt_context = {
+                                    'detection_confidence': detection.confidence,
+                                    'detection_evidence': detection.evidence,
+                                    'timestamp': detection.timestamp,
+                                    'should_send_idle_prompt': True,
+                                    'idle_prompt_text': idle_prompt,
+                                    'context_spec': current_spec,
+                                    'context_project': current_project,
+                                }
+                                self.logger.info("Decision: sending idle prompt [inactivity]")
+                                execution = recovery_engine.execute_recovery(detection, prompt_context)
+                                if execution:
+                                    self._stats['total_recoveries'] += 1
+                                    self._last_idle_prompt_at = now_ts2
+                                    if self._pending_bootstrap:
+                                        self._pending_bootstrap = False
+                                        self._bootstrap_cleared = False
+                            else:
+                                self.logger.info("Decision: not sending prompt yet (cooldown or just cleared) [inactivity]")
+                            self._last_detected_state = ClaudeState.IDLE
+                            self._last_decision_ts = time.time()
+                            return
+            except Exception as e:
+                self.logger.debug(f"Inactivity IDLE fallback check failed: {e}")
                         
         except Exception as e:
             self.logger.error(f"Error in monitoring cycle: {e}")

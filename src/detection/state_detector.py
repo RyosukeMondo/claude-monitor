@@ -131,6 +131,8 @@ class StateDetector:
                     re.compile(r'claude\s*>?\s*$', re.IGNORECASE),  # Claude prompt
                     re.compile(r'ready\s*[>\$#]?\s*$', re.IGNORECASE),  # Ready prompt
                     re.compile(r'waiting\s+for\s+(?:command|input)', re.IGNORECASE),
+                    # Treat UI hint '(esc to interrupt …)' at line start as an IDLE indicator (INACTIVE)
+                    re.compile(r'^\s*\(esc\s+to\s+interrupt\b.*$', re.IGNORECASE | re.MULTILINE),
                 ],
                 'weight': 1.0,
                 'negative_patterns': [
@@ -212,11 +214,17 @@ class StateDetector:
                     re.compile(r'task\s+(?:complete|finished)', re.IGNORECASE),
                     re.compile(r'all\s+(?:tasks|work)\s+(?:complete|done)', re.IGNORECASE),
                     re.compile(r'no\s+(?:pending|remaining)\s+tasks', re.IGNORECASE),
+                    # Strong task item completion lines e.g. "Task 5.1: Update Dependencies ✅"
+                    re.compile(r'^\s*Task\s+\d+(?:\.\d+)?\s*:\s*.+?(?:✅|✓|✔️)[\s\S]*?$', re.IGNORECASE | re.MULTILINE),
+                    # Commit confirmation phrases
+                    re.compile(r'(?:committed\s+to\s+git|pushed\s+commits|saved\s+changes)', re.IGNORECASE),
+                    re.compile(r'(?:both|all)\s+tasks\s+have\s+been\s+committed', re.IGNORECASE),
                 ],
-                'weight': 0.9,
+                'weight': 1.1,
                 'confirmation_patterns': [
                     re.compile(r'✓|✅|✔️|[✓✔]', re.UNICODE),
                     re.compile(r'\bOK\b|\bOKAY\b', re.IGNORECASE),
+                    re.compile(r'committed\s+to\s+git', re.IGNORECASE),
                 ]
             }
         }
@@ -395,8 +403,35 @@ class StateDetector:
             score += self._score_error_state(combined_text, pattern_config, evidence)
         elif state_name == 'idle':
             score += self._score_idle_state(lines, evidence)
+        elif state_name == 'completed':
+            score += self._score_completed_state(recent_text, combined_text, pattern_config, evidence)
             
         return max(score, 0.0), evidence, triggering_lines
+
+    def _score_completed_state(self, recent_text: str, combined_text: str, config: Dict[str, Any], 
+                               evidence: List[str]) -> float:
+        """Boost completed state when strong indicators like checkmarks and commit phrases appear."""
+        bonus = 0.0
+        # Check for multiple checkmarks in proximity
+        checkmarks = re.findall(r'(?:✅|✓|✔️|[✓✔])', recent_text)
+        if len(checkmarks) >= 2:
+            bonus += 0.3
+            evidence.append(f"Multiple completion checkmarks: {len(checkmarks)}")
+        elif len(checkmarks) == 1:
+            bonus += 0.15
+            evidence.append("Single completion checkmark")
+
+        # Look for commit-related confirmation
+        if re.search(r'(committed\s+to\s+git|pushed\s+commits|both\s+tasks\s+have\s+been\s+committed)', combined_text, re.IGNORECASE):
+            bonus += 0.25
+            evidence.append("Commit confirmation found")
+
+        # Phrases indicating no remaining tasks in this phase
+        if re.search(r'(remaining\s+tasks.*ready\s+to\s+be\s+worked\s+on|phase\s+.*\s+successfully\s+completed)', combined_text, re.IGNORECASE):
+            bonus += 0.2
+            evidence.append("Phase completion / remaining tasks phrasing detected")
+
+        return bonus
         
     def _score_context_pressure(self, text: str, config: Dict[str, Any], 
                                evidence: List[str]) -> float:
@@ -469,7 +504,20 @@ class StateDetector:
         """Score idle state based on time since last activity."""
         if not lines:
             return 0.0
-            
+
+        score = 0.0
+
+        # Strong IDLE indicator seen in Claude UI when nothing is running
+        try:
+            esc_hint_regex = re.compile(r"^\s*\(esc\s+to\s+interrupt\b.*$", re.IGNORECASE | re.MULTILINE)
+            for line in lines[-10:]:  # check recent lines
+                if esc_hint_regex.search(line.content):
+                    score += 0.5
+                    evidence.append("UI hint present: (esc to interrupt)")
+                    break
+        except Exception:
+            pass
+
         # Check time since last activity
         last_line = lines[-1]
         time_since_last = (datetime.now() - last_line.timestamp).total_seconds()
@@ -477,11 +525,10 @@ class StateDetector:
         idle_timeout = self.config.get('idle_timeout', 30.0)
         
         if time_since_last >= idle_timeout:
-            score = min(time_since_last / idle_timeout, 1.0) * 0.5
+            score += min(time_since_last / idle_timeout, 1.0) * 0.5
             evidence.append(f"Idle for {time_since_last:.1f}s")
-            return score
             
-        return 0.0
+        return score
         
     def _apply_timeout_scoring(self, state_scores: Dict[str, float], 
                              lines: List[LogLine]):
