@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import sqliteAdapter from '../../../lib/database/adapters/sqlite-adapter';
-import { getMemoryCache } from '../../../lib/cache/memory-cache';
+// import sqliteAdapter from '../../../../lib/database/adapters/sqlite-adapter';
+import { getMemoryCache } from '../../../../lib/cache/memory-cache';
 
 export async function GET(request: NextRequest) {
   const timestamp = new Date().toISOString();
@@ -17,27 +17,13 @@ export async function GET(request: NextRequest) {
   const services: Record<string, any> = {};
 
   try {
-    // Check SQLite database status
-    try {
-      const dbStats = await sqliteAdapter.getDatabaseStats();
-      services.database = {
-        status: 'healthy',
-        type: 'sqlite',
-        initialized: sqliteAdapter.isReady(),
-        path: sqliteAdapter.getDatabasePath(),
-        fileSize: dbStats.fileSize,
-        tables: dbStats.tables.length,
-        records: Object.values(dbStats.recordCounts).reduce((sum, count) => sum + Math.max(0, count), 0)
-      };
-    } catch (error) {
-      services.database = {
-        status: 'unhealthy',
-        type: 'sqlite',
-        initialized: false,
-        error: error instanceof Error ? error.message : 'Unknown database error'
-      };
-      overallStatus = 'degraded';
-    }
+    // Check SQLite database status (placeholder for future SQLite adapter)
+    services.database = {
+      status: 'pending',
+      type: 'sqlite',
+      initialized: false,
+      note: 'SQLite adapter not yet implemented'
+    };
 
     // Check memory cache status
     try {

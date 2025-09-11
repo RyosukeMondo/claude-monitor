@@ -9,13 +9,14 @@
 
 import { Server as HttpServer } from 'http'
 import { Server as SocketIOServer, Socket } from 'socket.io'
-import { ConversationEvent, StateAnalysis, ProjectInfo } from '../types/conversation'
+import { ConversationEvent } from '../types/conversation'
+import { MemorySessionCache } from '../cache/memory-cache'
 
 export interface MonitoringEvent {
   type: 'state_change' | 'new_event' | 'project_update' | 'recovery_action' | 'health_check'
   timestamp: string
   projectId?: string
-  data: any
+  data: unknown
 }
 
 export interface ConnectionStats {
@@ -32,6 +33,9 @@ export interface ConnectionStats {
 export class MonitoringWebSocketServer {
   private io: SocketIOServer | null = null
   private connectedClients = new Set<string>()
+  private clientSessions = new Map<string, Set<string>>() // clientId -> sessionIds
+  private sessionClients = new Map<string, Set<string>>() // sessionId -> clientIds
+  private memoryCache: MemorySessionCache | null = null
   private stats: ConnectionStats = {
     totalConnections: 0,
     activeConnections: 0,
@@ -40,6 +44,15 @@ export class MonitoringWebSocketServer {
   }
 
   constructor(private httpServer: HttpServer) {}
+
+  /**
+   * Set memory cache for session management integration
+   * Enables cross-tab synchronization and session persistence
+   */
+  setMemoryCache(cache: MemorySessionCache): void {
+    this.memoryCache = cache
+    console.log('[WebSocket] Memory cache integration enabled')
+  }
 
   /**
    * Initialize Socket.IO server with proper configuration
@@ -93,6 +106,66 @@ export class MonitoringWebSocketServer {
         this.emitProjectStatus(projectId, socket)
       })
 
+      // Handle session joining for cross-tab synchronization
+      socket.on('join_session', (sessionId: string) => {
+        this.addClientToSession(clientId, sessionId)
+        socket.join(`session:${sessionId}`)
+        
+        // Register connection with memory cache
+        if (this.memoryCache) {
+          this.memoryCache.addConnection(sessionId, clientId)
+        }
+        
+        console.log(`[WebSocket] Client ${clientId} joined session: ${sessionId}`)
+        
+        // Notify other clients in the session about new connection
+        socket.to(`session:${sessionId}`).emit('session_member_joined', {
+          sessionId,
+          clientId,
+          timestamp: new Date().toISOString()
+        })
+      })
+
+      // Handle session leaving
+      socket.on('leave_session', (sessionId: string) => {
+        this.removeClientFromSession(clientId, sessionId)
+        socket.leave(`session:${sessionId}`)
+        
+        // Remove connection from memory cache
+        if (this.memoryCache) {
+          this.memoryCache.removeConnection(sessionId, clientId)
+        }
+        
+        console.log(`[WebSocket] Client ${clientId} left session: ${sessionId}`)
+        
+        // Notify other clients in the session about disconnection
+        socket.to(`session:${sessionId}`).emit('session_member_left', {
+          sessionId,
+          clientId,
+          timestamp: new Date().toISOString()
+        })
+      })
+
+      // Handle session data synchronization
+      socket.on('sync_session_data', (data: { sessionId: string; payload: unknown }) => {
+        const { sessionId, payload } = data
+        
+        // Update session data in memory cache
+        if (this.memoryCache) {
+          this.memoryCache.set(sessionId, payload, undefined, undefined, clientId)
+        }
+        
+        // Broadcast to other clients in the session
+        socket.to(`session:${sessionId}`).emit('session_data_updated', {
+          sessionId,
+          payload,
+          sourceClient: clientId,
+          timestamp: new Date().toISOString()
+        })
+        
+        console.log(`[WebSocket] Session ${sessionId} data synchronized by client ${clientId}`)
+      })
+
       // Handle client unsubscription
       socket.on('unsubscribe_project', (projectId: string) => {
         socket.leave(`project:${projectId}`)
@@ -108,6 +181,10 @@ export class MonitoringWebSocketServer {
       socket.on('disconnect', (reason) => {
         this.connectedClients.delete(clientId)
         this.stats.activeConnections--
+        
+        // Clean up all session connections for this client
+        this.cleanupClientSessions(clientId)
+        
         console.log(`[WebSocket] Client disconnected: ${clientId}, reason: ${reason}`)
       })
 
@@ -176,7 +253,7 @@ export class MonitoringWebSocketServer {
    * Broadcast state change event
    * Maps to Python StateDetection results
    */
-  broadcastStateChange(projectId: string, stateAnalysis: StateAnalysis): void {
+  broadcastStateChange(projectId: string, stateAnalysis: unknown): void {
     this.broadcastMonitoringEvent({
       type: 'state_change',
       timestamp: new Date().toISOString(),
@@ -202,7 +279,7 @@ export class MonitoringWebSocketServer {
    * Broadcast recovery action execution
    * Maps to Python recovery engine callbacks
    */
-  broadcastRecoveryAction(projectId: string, action: any): void {
+  broadcastRecoveryAction(projectId: string, action: unknown): void {
     this.broadcastMonitoringEvent({
       type: 'recovery_action',
       timestamp: new Date().toISOString(),
@@ -215,7 +292,7 @@ export class MonitoringWebSocketServer {
    * Send health check status to all clients
    * Equivalent to Python daemon health monitoring
    */
-  broadcastHealthCheck(status: 'healthy' | 'degraded' | 'error', details?: any): void {
+  broadcastHealthCheck(status: 'healthy' | 'degraded' | 'error', details?: unknown): void {
     this.broadcastMonitoringEvent({
       type: 'health_check',
       timestamp: new Date().toISOString(),
@@ -239,11 +316,136 @@ export class MonitoringWebSocketServer {
   }
 
   /**
+   * Add client to session tracking for cross-tab synchronization
+   */
+  private addClientToSession(clientId: string, sessionId: string): void {
+    // Track sessions for this client
+    if (!this.clientSessions.has(clientId)) {
+      this.clientSessions.set(clientId, new Set())
+    }
+    this.clientSessions.get(clientId)!.add(sessionId)
+
+    // Track clients for this session
+    if (!this.sessionClients.has(sessionId)) {
+      this.sessionClients.set(sessionId, new Set())
+    }
+    this.sessionClients.get(sessionId)!.add(clientId)
+  }
+
+  /**
+   * Remove client from session tracking
+   */
+  private removeClientFromSession(clientId: string, sessionId: string): void {
+    // Remove session from client tracking
+    const clientSessions = this.clientSessions.get(clientId)
+    if (clientSessions) {
+      clientSessions.delete(sessionId)
+      if (clientSessions.size === 0) {
+        this.clientSessions.delete(clientId)
+      }
+    }
+
+    // Remove client from session tracking
+    const sessionClients = this.sessionClients.get(sessionId)
+    if (sessionClients) {
+      sessionClients.delete(clientId)
+      if (sessionClients.size === 0) {
+        this.sessionClients.delete(sessionId)
+      }
+    }
+
+    // Remove connection from memory cache
+    if (this.memoryCache) {
+      this.memoryCache.removeConnection(sessionId, clientId)
+    }
+  }
+
+  /**
+   * Clean up all sessions for a disconnected client
+   */
+  private cleanupClientSessions(clientId: string): void {
+    const sessions = this.clientSessions.get(clientId)
+    if (!sessions) return
+
+    // Notify all sessions that this client left
+    for (const sessionId of sessions) {
+      // Remove from session tracking
+      const sessionClients = this.sessionClients.get(sessionId)
+      if (sessionClients) {
+        sessionClients.delete(clientId)
+        if (sessionClients.size === 0) {
+          this.sessionClients.delete(sessionId)
+        }
+      }
+
+      // Remove from memory cache
+      if (this.memoryCache) {
+        this.memoryCache.removeConnection(sessionId, clientId)
+      }
+
+      // Notify other clients in the session
+      if (this.io) {
+        this.io.to(`session:${sessionId}`).emit('session_member_left', {
+          sessionId,
+          clientId,
+          timestamp: new Date().toISOString(),
+          reason: 'disconnect'
+        })
+      }
+    }
+
+    // Clear all client sessions
+    this.clientSessions.delete(clientId)
+  }
+
+  /**
+   * Broadcast session event to all clients in a session
+   */
+  broadcastToSession(sessionId: string, event: string, data: unknown): void {
+    if (!this.io) return
+
+    this.io.to(`session:${sessionId}`).emit(event, {
+      sessionId,
+      data,
+      timestamp: new Date().toISOString()
+    })
+
+    // Also broadcast via memory cache if available
+    if (this.memoryCache) {
+      this.memoryCache.broadcast(sessionId, { event, data })
+    }
+  }
+
+  /**
+   * Get connected clients for a specific session
+   */
+  getSessionClients(sessionId: string): string[] {
+    const clients = this.sessionClients.get(sessionId)
+    return clients ? Array.from(clients) : []
+  }
+
+  /**
+   * Get session count and statistics
+   */
+  getSessionStats(): { totalSessions: number; totalSessionClients: number; clientSessionCount: number } {
+    return {
+      totalSessions: this.sessionClients.size,
+      totalSessionClients: Array.from(this.sessionClients.values())
+        .reduce((total, clients) => total + clients.size, 0),
+      clientSessionCount: this.clientSessions.size
+    }
+  }
+
+  /**
    * Close server and all connections
    */
   close(): Promise<void> {
     return new Promise((resolve) => {
       if (this.io) {
+        // Clean up session tracking
+        this.clientSessions.clear()
+        this.sessionClients.clear()
+        
         this.io.close(() => {
           console.log('[WebSocket] Server closed')
           resolve()
@@ -280,6 +482,20 @@ export function getWebSocketServer(httpServer?: HttpServer): MonitoringWebSocket
  */
 export function initializeWebSocketServer(httpServer: HttpServer): MonitoringWebSocketServer {
   wsServer = new MonitoringWebSocketServer(httpServer)
+  wsServer.initialize()
+  return wsServer
+}
+
+/**
+ * Initialize WebSocket server with memory cache integration
+ * Enables cross-tab session synchronization for standalone mode
+ */
+export function initializeWebSocketServerWithCache(
+  httpServer: HttpServer, 
+  memoryCache: MemorySessionCache
+): MonitoringWebSocketServer {
+  wsServer = new MonitoringWebSocketServer(httpServer)
+  wsServer.setMemoryCache(memoryCache)
   wsServer.initialize()
   return wsServer
 }
