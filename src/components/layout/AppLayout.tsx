@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { HeaderComponent } from './HeaderComponent';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -129,38 +130,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main content area */}
       <div className="lg:pl-64">
         {/* Top header */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 h-16">
-          <div className="flex items-center justify-between h-full px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <h1 className="ml-2 text-xl font-semibold text-gray-900 dark:text-white lg:ml-0">
-                {navigation.find(item => item.href === pathname)?.name || 'Claude Monitor'}
-              </h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* System status */}
-              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span>System Online</span>
-              </div>
-              
-              {/* Theme toggle could go here */}
-              <button className="p-2 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </header>
+        <HeaderComponent 
+          onMenuClick={() => setSidebarOpen(true)} 
+          navigation={navigation}
+        />
 
         {/* Page content */}
         <main className="flex-1">
