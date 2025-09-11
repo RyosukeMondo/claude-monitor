@@ -8,8 +8,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthConfig, validateInput } from './lib/auth/config';
-import { getStandaloneSetupStatus } from './lib/setup/setup-assistant';
-import { checkStandaloneSetup } from './lib/config/standalone-generator';
 
 // Rate limiting store (in production, use Redis or similar)
 const rateLimitStore = new Map<string, { count: number; resetTime: number; blocked: boolean; blockUntil?: number }>();
@@ -17,13 +15,13 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number; block
 // Login attempt tracking (in production, use Redis or similar)
 const loginAttempts = new Map<string, { attempts: number; blockUntil?: number }>();
 
-// Startup configuration cache to avoid repeated checks
+// Edge Runtime compatible setup check
 let setupStatusCache: {
   isSetup: boolean;
   lastCheck: number;
   ttl: number;
 } = {
-  isSetup: false,
+  isSetup: true, // Default to setup complete for Edge Runtime
   lastCheck: 0,
   ttl: 5 * 60 * 1000, // 5 minutes TTL
 };
@@ -184,6 +182,7 @@ function getClientIP(request: NextRequest): string {
 
 /**
  * Check if we're in standalone mode and need setup
+ * Edge Runtime compatible version - delegates to API route
  */
 async function needsStandaloneSetup(): Promise<boolean> {
   const now = Date.now();
@@ -195,14 +194,18 @@ async function needsStandaloneSetup(): Promise<boolean> {
   }
   
   try {
-    const status = await getStandaloneSetupStatus();
+    // For Edge Runtime, we'll check via environment variables
+    // and delegate detailed setup checking to API routes
+    const hasEnvConfig = process.env.CLAUDE_MONITOR_STANDALONE_MODE === 'true' ||
+                        process.env.DATABASE_URL?.includes('file:');
+    
     setupStatusCache = {
-      isSetup: status.isSetup,
+      isSetup: hasEnvConfig,
       lastCheck: now,
       ttl: setupStatusCache.ttl
     };
     
-    return !status.isSetup;
+    return !hasEnvConfig;
   } catch (error) {
     // On error, assume setup is not needed to avoid blocking the app
     console.error('Error checking setup status:', error);
