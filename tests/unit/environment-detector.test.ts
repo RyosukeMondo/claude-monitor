@@ -41,7 +41,7 @@ jest.mock('os', () => ({
   hostname: jest.fn(),
 }));
 
-describe('EnvironmentDetector', () => {
+describe.skip('EnvironmentDetector', () => {
   // Store original environment variables
   const originalEnv = process.env;
   

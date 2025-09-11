@@ -3,6 +3,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppLayout } from '../../../src/components/layout/AppLayout';
 
+// Mock next/navigation
+const mockUsePathname = jest.fn();
+jest.mock('next/navigation', () => ({
+  usePathname: () => mockUsePathname(),
+  useRouter: jest.fn(() => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    refresh: jest.fn(),
+  })),
+}));
+
 // Mock HeaderComponent
 jest.mock('../../../src/components/layout/HeaderComponent', () => ({
   HeaderComponent: ({ onMenuClick }: { onMenuClick: () => void }) => (
@@ -22,6 +33,8 @@ describe('AppLayout', () => {
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
+    // Set default mock behavior
+    mockUsePathname.mockReturnValue('/');
   });
 
   describe('Rendering', () => {
@@ -56,7 +69,7 @@ describe('AppLayout', () => {
   describe('Navigation Active State', () => {
     it('should highlight active navigation item based on pathname', () => {
       // Mock usePathname to return '/dashboard'
-      require('next/navigation').usePathname.mockReturnValue('/dashboard');
+      mockUsePathname.mockReturnValue('/dashboard');
 
       render(<AppLayout {...defaultProps} />);
       
@@ -66,7 +79,7 @@ describe('AppLayout', () => {
     });
 
     it('should not highlight inactive navigation items', () => {
-      require('next/navigation').usePathname.mockReturnValue('/dashboard');
+      mockUsePathname.mockReturnValue('/dashboard');
 
       render(<AppLayout {...defaultProps} />);
       
@@ -196,7 +209,7 @@ describe('AppLayout', () => {
     });
 
     it('should have proper contrast for active states', () => {
-      require('next/navigation').usePathname.mockReturnValue('/dashboard');
+      mockUsePathname.mockReturnValue('/dashboard');
 
       render(<AppLayout {...defaultProps} />);
       
@@ -248,12 +261,10 @@ describe('AppLayout', () => {
 
   describe('Performance', () => {
     it('should not cause unnecessary re-renders when pathname changes', () => {
-      const mockUsePathname = require('next/navigation').usePathname;
-      
       const { rerender } = render(<AppLayout {...defaultProps} />);
       
       // Change pathname
-      require('next/navigation').usePathname.mockReturnValue('/projects');
+      mockUsePathname.mockReturnValue('/projects');
       rerender(<AppLayout {...defaultProps} />);
       
       // Verify active state updated
