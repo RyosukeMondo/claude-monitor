@@ -54,6 +54,14 @@ A comprehensive Claude Code monitoring and management system with flexible deplo
 - **Auto-Detection**: Automatically configures based on environment
 - **Zero-Config Setup**: Automatic database and configuration generation
 
+### 🎨 Modern Web Interface
+- **Professional Dashboard**: Comprehensive monitoring overview with real-time metrics and system health
+- **Responsive Navigation**: Fixed sidebar with collapsible mobile support and active route highlighting
+- **Interactive Performance Monitoring**: Visual charts, load testing controls, and benchmark displays
+- **Project & Session Management**: Centralized project listing, session timelines, and activity logs
+- **Real-Time Updates**: Live data synchronization via WebSocket with smooth visual transitions
+- **Recovery Operations**: Safe recovery interface with confirmation dialogs and progress indicators
+
 ### 🔧 Claude Code Launcher
 - **Native TypeScript Implementation**: Launch Claude Code instances with TCP bridge functionality
 - **Web-Based Management**: Add, remove, and monitor Claude Code instances from the web UI
@@ -81,10 +89,17 @@ A comprehensive Claude Code monitoring and management system with flexible deplo
 - **Production Ready**: Optimized multi-stage builds with security best practices
 
 ### 🔐 Authentication & Setup
+- **Enhanced Authentication Flow**: Improved login/logout experience with redirect handling
+- **Session Management**: Automatic session refresh and secure state preservation
 - **Zero-Configuration**: Auto-generates configuration files for standalone mode
 - **First-Time Setup**: Guided authentication flow for containerized environments
-- **Persistent Auth**: Authentication state preserved across restarts
 - **Clear Instructions**: Step-by-step setup guidance with troubleshooting
+
+### ♿ Accessibility & Responsive Design
+- **WCAG Compliance**: Full accessibility support with keyboard navigation and screen reader compatibility
+- **Mobile-First Design**: Touch-friendly interface optimized for all device sizes
+- **Progressive Enhancement**: Graceful degradation for offline functionality
+- **Theme Support**: Light/dark theme with system preference detection
 
 ## 🏗️ Architecture
 
@@ -159,6 +174,77 @@ CLAUDE_MONITOR_LOG_CONSOLE=true
 - **Port**: 6379
 - **Persistence**: Volume-mounted data directory
 - **Health Check**: Redis ping monitoring
+
+## 🧭 UI Navigation Guide
+
+### Dashboard Overview
+The main dashboard provides a comprehensive system overview with real-time monitoring:
+
+- **System Health Cards**: CPU, memory, and service status with color-coded indicators
+- **Performance Metrics**: Live charts showing response times, throughput, and error rates  
+- **Active Projects**: Quick overview of monitored projects with session counts
+- **Quick Actions**: One-click access to common operations (add instance, run diagnostics)
+- **Real-Time Updates**: WebSocket-powered live data with smooth visual transitions
+
+### Navigation Structure
+The responsive sidebar provides access to all application features:
+
+- **📊 Dashboard**: System overview and health monitoring
+- **⚡ Performance**: Interactive performance monitoring with charts and load testing
+- **📁 Projects**: Project management with status indicators and quick actions
+- **🔄 Sessions**: Session timeline and activity logs with filtering capabilities
+- **🛠️ Recovery**: Safe recovery operations with confirmation dialogs
+- **⚙️ Settings**: Configuration and preferences management
+
+### Page-Specific Features
+
+#### Performance Monitoring
+- **Interactive Charts**: Recharts-powered visualizations with zoom and filter capabilities
+- **Load Testing**: Configurable stress testing with real-time progress monitoring  
+- **Benchmark Comparison**: Visual comparison between Node.js and Python implementations
+- **Export Options**: Download performance reports in multiple formats
+
+#### Project Management  
+- **Project Grid**: Card-based layout with status indicators and metadata
+- **Quick Actions**: Start/stop monitoring, view details, access logs
+- **Filtering**: Search and filter projects by status, activity, or custom criteria
+- **Bulk Operations**: Multi-select for batch project management
+
+#### Session Analysis
+- **Timeline View**: Chronological session activity with expandable details
+- **Activity Logs**: Searchable and filterable session events with context
+- **Session Details**: Deep dive into individual sessions with performance metrics
+- **Export Logs**: Download session data for external analysis
+
+#### Recovery Operations
+- **Safety First**: All destructive operations require explicit confirmation
+- **Progress Tracking**: Real-time progress indicators for long-running recovery tasks
+- **Operation History**: Track recovery actions with timestamps and outcomes
+- **Rollback Options**: Quick access to previous states when possible
+
+### Responsive Design
+The interface adapts seamlessly across devices:
+
+- **Desktop** (1200px+): Full sidebar navigation with expanded content areas
+- **Tablet** (768px-1199px): Collapsible sidebar with touch-optimized controls
+- **Mobile** (320px-767px): Hidden sidebar with hamburger menu and stacked layouts
+- **Touch Support**: All interactive elements optimized for touch devices
+
+### Keyboard Navigation
+Full keyboard accessibility support:
+
+- **Tab Navigation**: Logical tab order through all interactive elements
+- **Keyboard Shortcuts**: Quick access to common actions (Ctrl+/ for search)
+- **Focus Indicators**: Clear visual focus states for all navigable elements
+- **Screen Reader Support**: ARIA labels and structured content for assistive technology
+
+### Real-Time Features
+Stay updated with live system changes:
+
+- **WebSocket Integration**: Automatic updates without page refresh
+- **Connection Status**: Visual indicator for real-time connection health
+- **Offline Support**: Graceful degradation when connection is lost
+- **Notification System**: Toast notifications for important system events
 
 ## 📖 Usage Guide
 
@@ -272,6 +358,44 @@ PORT=3001 npm run dev
 chmod 755 ~/.claude/projects/
 chmod 755 ./prisma/
 mkdir -p ./logs && chmod 755 ./logs/
+```
+
+#### UI Navigation Issues
+```bash
+# Clear browser cache and refresh
+# In browser: Ctrl+Shift+R or Cmd+Shift+R
+
+# Check for JavaScript errors
+# Open browser dev tools (F12) and check Console tab
+
+# Verify WebSocket connection
+# In Network tab, look for websocket connections to localhost:3000
+```
+
+#### Responsive Layout Problems
+```bash
+# Test different screen sizes
+# Use browser dev tools responsive design mode (F12 > Toggle device toolbar)
+
+# Verify CSS is loading
+# Check Network tab for 404 errors on CSS files
+
+# Clear styling issues
+rm -rf .next/
+npm run dev  # Rebuilds optimized styles
+```
+
+#### Authentication Flow Issues
+```bash
+# Clear authentication cookies
+# In browser dev tools: Application > Storage > Clear storage
+
+# Check redirect parameters
+# Verify return URL is properly encoded in login redirect
+
+# Reset auth state
+rm -f .env.local
+npm run dev  # Regenerates auth configuration
 ```
 
 ### Docker Mode Issues
