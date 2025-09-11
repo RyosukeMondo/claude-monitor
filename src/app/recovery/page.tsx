@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RecoveryControls } from '../../components/dashboard/recovery-controls';
 import { ProjectInfo, RecoveryAction, RecoveryResult, ClaudeState } from '../../types/monitoring';
+import { getRecoveryActionService } from '../../../lib/services/recovery-actions';
 
 // Mock data for development - in production this would come from an API
 const mockProject: ProjectInfo = {
@@ -38,29 +39,149 @@ interface RecoveryHistoryItem {
   status: 'pending' | 'executing' | 'completed' | 'failed';
 }
 
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  action: RecoveryAction | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isExecuting: boolean;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  action,
+  onConfirm,
+  onCancel,
+  isExecuting
+}) => {
+  if (!isOpen || !action) return null;
+
+  const isDestructive = action.type === 'restart_session' || 
+    (action.type === 'custom_command' && action.command?.includes('rm'));
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            isDestructive ? 'bg-red-100 dark:bg-red-900' : 'bg-yellow-100 dark:bg-yellow-900'
+          }`}>
+            <span className="text-lg">
+              {isDestructive ? '⚠️' : '🔧'}
+            </span>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {isDestructive ? 'Confirm Destructive Action' : 'Confirm Recovery Action'}
+          </h3>
+        </div>
+        
+        <div className="mb-6">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            {isDestructive 
+              ? 'This action could disrupt your current work. Are you sure you want to proceed?'
+              : 'Are you sure you want to execute this recovery action?'
+            }
+          </p>
+          
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+            <div className="text-sm">
+              <strong>Action Type:</strong> <span className="capitalize">{action.type.replace('_', ' ')}</span>
+            </div>
+            <div className="text-sm">
+              <strong>Target:</strong> {action.projectPath}
+            </div>
+            {action.command && (
+              <div className="text-sm">
+                <strong>Command:</strong> 
+                <code className="bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded ml-2 text-xs">
+                  {action.command}
+                </code>
+              </div>
+            )}
+            <div className="text-sm">
+              <strong>Reason:</strong> {action.reason}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            disabled={isExecuting}
+            className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isExecuting}
+            className={`px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors ${
+              isDestructive
+                ? 'bg-red-600 hover:bg-red-700 focus:bg-red-700 focus:ring-red-500'
+                : 'bg-blue-600 hover:bg-blue-700 focus:bg-blue-700 focus:ring-blue-500'
+            }`}
+          >
+            {isExecuting ? (
+              <span className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Executing...</span>
+              </span>
+            ) : (
+              `${isDestructive ? 'Execute Anyway' : 'Confirm & Execute'}`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function RecoveryPage() {
   const [project, setProject] = useState<ProjectInfo>(mockProject);
   const [recoveryHistory, setRecoveryHistory] = useState<RecoveryHistoryItem[]>([]);
   const [isConnected, setIsConnected] = useState(true);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingAction, setPendingAction] = useState<RecoveryAction | null>(null);
+  const [currentExecution, setCurrentExecution] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connected');
+  const [systemHealth, setSystemHealth] = useState<'healthy' | 'warning' | 'error'>('healthy');
 
-  // Simulate real-time updates
+  // Initialize recovery service and simulate real-time updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate state changes for demonstration
+    const recoveryService = getRecoveryActionService();
+    
+    // Simulate connection status monitoring
+    const connectionInterval = setInterval(() => {
+      const isServiceConnected = recoveryService.isEnabled();
+      setIsConnected(isServiceConnected);
+      setConnectionStatus(isServiceConnected ? 'connected' : 'disconnected');
+    }, 5000);
+
+    // Simulate real-time state updates
+    const stateInterval = setInterval(() => {
       const states = [ClaudeState.IDLE, ClaudeState.ACTIVE, ClaudeState.WAITING_INPUT];
       const randomState = states[Math.floor(Math.random() * states.length)];
+      
+      // Simulate system health based on state
+      let health: 'healthy' | 'warning' | 'error' = 'healthy';
+      if (randomState === ClaudeState.IDLE) health = 'warning';
+      if (randomState === ClaudeState.ERROR) health = 'error';
       
       setProject(prev => ({
         ...prev,
         currentState: randomState,
         lastActivity: new Date(),
       }));
+      setSystemHealth(health);
     }, 30000); // Update every 30 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(connectionInterval);
+      clearInterval(stateInterval);
+    };
   }, []);
 
-  const handleRecoveryAction = async (action: RecoveryAction) => {
+  const executeRecoveryAction = useCallback(async (action: RecoveryAction) => {
     const historyItem: RecoveryHistoryItem = {
       id: Date.now().toString(),
       action,
@@ -69,38 +190,65 @@ export default function RecoveryPage() {
     };
 
     setRecoveryHistory(prev => [historyItem, ...prev]);
+    setCurrentExecution(historyItem.id);
 
     try {
-      // Simulate API call to execute recovery action
+      setConnectionStatus('connecting');
+      const recoveryService = getRecoveryActionService();
+      
+      // Simulate API call to execute recovery action with enhanced error handling
       console.log('Executing recovery action:', action);
       
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Enhanced simulation with more realistic timing
+      const executionTime = action.type === 'restart_session' ? 5000 : 2000;
+      await new Promise(resolve => setTimeout(resolve, executionTime));
       
-      // Simulate successful result
-      const result: RecoveryResult = {
-        success: true,
-        message: `Successfully executed ${action.type} action`,
-        timestamp: new Date(),
-        action,
-      };
+      // Simulate potential failures for demonstration
+      const shouldFail = Math.random() < 0.1; // 10% chance of failure
+      
+      let result: RecoveryResult;
+      if (shouldFail) {
+        result = {
+          success: false,
+          message: `Failed to execute ${action.type} action: Connection timeout`,
+          timestamp: new Date(),
+          action,
+        };
+      } else {
+        result = {
+          success: true,
+          message: `Successfully executed ${action.type} action`,
+          timestamp: new Date(),
+          action,
+        };
+      }
 
       setRecoveryHistory(prev => 
         prev.map(item => 
           item.id === historyItem.id 
-            ? { ...item, result, status: 'completed' }
+            ? { ...item, result, status: result.success ? 'completed' : 'failed' }
             : item
         )
       );
 
       // Update project state based on action
-      if (action.type === 'clear') {
-        setProject(prev => ({
-          ...prev,
-          currentState: ClaudeState.ACTIVE,
-          lastActivity: new Date(),
-        }));
+      if (result.success) {
+        if (action.type === 'clear') {
+          setProject(prev => ({
+            ...prev,
+            currentState: ClaudeState.ACTIVE,
+            lastActivity: new Date(),
+          }));
+        } else if (action.type === 'restart_session') {
+          setProject(prev => ({
+            ...prev,
+            currentState: ClaudeState.ACTIVE,
+            lastActivity: new Date(),
+          }));
+        }
       }
+
+      setConnectionStatus('connected');
 
     } catch (error) {
       console.error('Recovery action failed:', error);
@@ -119,8 +267,39 @@ export default function RecoveryPage() {
             : item
         )
       );
+      
+      setConnectionStatus('disconnected');
+    } finally {
+      setCurrentExecution(null);
     }
-  };
+  }, []);
+
+  const handleRecoveryAction = useCallback(async (action: RecoveryAction) => {
+    // Check if action requires confirmation based on type
+    const requiresConfirmation = action.type === 'restart_session' || 
+      action.type === 'custom_command' ||
+      (action.command && (action.command.includes('rm') || action.command.includes('kill')));
+
+    if (requiresConfirmation) {
+      setPendingAction(action);
+      setShowConfirmation(true);
+    } else {
+      await executeRecoveryAction(action);
+    }
+  }, [executeRecoveryAction]);
+
+  const handleConfirmAction = useCallback(async () => {
+    if (pendingAction) {
+      setShowConfirmation(false);
+      await executeRecoveryAction(pendingAction);
+      setPendingAction(null);
+    }
+  }, [pendingAction, executeRecoveryAction]);
+
+  const handleCancelAction = useCallback(() => {
+    setShowConfirmation(false);
+    setPendingAction(null);
+  }, []);
 
   const formatTimeAgo = (date: Date): string => {
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -160,21 +339,44 @@ export default function RecoveryPage() {
             Recovery Controls
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Manual recovery actions and monitoring for Claude Code projects
+            Manual recovery actions and monitoring for Claude Code projects with enhanced safety controls
           </p>
         </div>
 
-        {/* Connection Status */}
+        {/* Enhanced Connection Status */}
         <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <div className={`w-3 h-3 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-green-500' :
+                connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                'bg-red-500'
+              }`} />
               <span className="font-medium text-gray-900 dark:text-white">
-                {isConnected ? 'Connected to Claude Monitor' : 'Disconnected'}
+                {connectionStatus === 'connected' ? 'Connected to Claude Monitor' :
+                 connectionStatus === 'connecting' ? 'Connecting...' :
+                 'Disconnected'}
               </span>
+              {currentExecution && (
+                <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  <span className="text-sm">Executing...</span>
+                </div>
+              )}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Last updated: {formatTimeAgo(project.lastActivity)}
+            <div className="flex items-center space-x-4">
+              <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                systemHealth === 'healthy' ? 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-200' :
+                systemHealth === 'warning' ? 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-200' :
+                'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {systemHealth === 'healthy' ? '✅ Healthy' :
+                 systemHealth === 'warning' ? '⚠️ Warning' :
+                 '❌ Error'}
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Last updated: {formatTimeAgo(project.lastActivity)}
+              </div>
             </div>
           </div>
         </div>
@@ -225,7 +427,7 @@ export default function RecoveryPage() {
           <RecoveryControls
             project={project}
             onAction={handleRecoveryAction}
-            disabled={!isConnected}
+            disabled={!isConnected || connectionStatus === 'connecting' || !!currentExecution}
           />
         </div>
 
@@ -236,7 +438,7 @@ export default function RecoveryPage() {
               Recovery History
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Recent recovery actions and their results
+              Recent recovery actions and their results with enhanced safety tracking
             </p>
           </div>
           
@@ -296,6 +498,15 @@ export default function RecoveryPage() {
           </div>
         </div>
       </div>
+      
+      {/* Enhanced Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmation}
+        action={pendingAction}
+        onConfirm={handleConfirmAction}
+        onCancel={handleCancelAction}
+        isExecuting={!!currentExecution}
+      />
     </div>
   );
 }
