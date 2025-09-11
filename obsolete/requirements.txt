@@ -1,4 +1,0 @@
-# Core dependencies for Claude Auto-Recovery System Configuration
-PyYAML>=6.0
-pytest>=7.0.0
-pytest-cov>=4.0.0

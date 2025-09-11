@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ConversationEvent, ConversationSession } from '../../lib/types/conversation';
+import { ConversationEvent, ConversationSession } from '../../../lib/types/conversation';
 import { format, isToday, isYesterday } from 'date-fns';
 import VirtualizedSessionViewer from './virtualized-session-viewer';
+
+// Use virtualized viewer for large datasets (>500 events for performance)
+const VIRTUALIZATION_THRESHOLD = 500;
 
 // Event timeline item component
 interface EventItemProps {
@@ -375,25 +378,12 @@ interface SessionViewerProps {
   className?: string;
 }
 
-export default function SessionViewer({ 
+function StandardSessionViewer({ 
   session, 
   events, 
   realTimeUpdates = false,
   className = '' 
 }: SessionViewerProps) {
-  // Use virtualized viewer for large datasets (>500 events for performance)
-  const VIRTUALIZATION_THRESHOLD = 500;
-  
-  if (events.length > VIRTUALIZATION_THRESHOLD) {
-    return (
-      <VirtualizedSessionViewer
-        session={session}
-        events={events}
-        realTimeUpdates={realTimeUpdates}
-        className={className}
-      />
-    );
-  }
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ConversationEvent | null>(null);
@@ -555,5 +545,32 @@ export default function SessionViewer({
         onClose={() => setSelectedEvent(null)}
       />
     </div>
+  );
+}
+
+// Wrapper component to decide between virtualized and standard viewers without using hooks
+export default function SessionViewer({ 
+  session, 
+  events, 
+  realTimeUpdates = false,
+  className = '' 
+}: SessionViewerProps) {
+  if (events.length > VIRTUALIZATION_THRESHOLD) {
+    return (
+      <VirtualizedSessionViewer
+        session={session}
+        events={events}
+        realTimeUpdates={realTimeUpdates}
+        className={className}
+      />
+    );
+  }
+  return (
+    <StandardSessionViewer
+      session={session}
+      events={events}
+      realTimeUpdates={realTimeUpdates}
+      className={className}
+    />
   );
 }
