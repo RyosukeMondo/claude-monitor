@@ -176,7 +176,7 @@ class ConfigManager {
       return [];
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+        return error.issues.map(e => `${e.path.join('.')}: ${e.message}`);
       }
       return ['Unknown validation error'];
     }
