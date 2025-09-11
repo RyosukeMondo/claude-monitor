@@ -24,7 +24,7 @@ import {
   validateStandaloneSetup,
   type StandaloneConfigOptions,
   type ConfigGenerationResult
-} from '../../lib/config/standalone-generator';
+} from '../../src/lib/config/standalone-generator';
 
 // Mock the config/settings module to control validation
 jest.mock('../../lib/config/settings', () => ({

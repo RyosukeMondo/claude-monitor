@@ -1,5 +1,5 @@
-import { EventParserService } from '../../lib/services/event-parser';
-import { StateDetector } from '../../lib/services/state-detector';
+import { EventParserService } from '../../src/lib/services/event-parser';
+import { StateDetector } from '../../src/lib/services/state-detector';
 
 describe('Monitoring Flow Integration Tests', () => {
 

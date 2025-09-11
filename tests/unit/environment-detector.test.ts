@@ -27,7 +27,7 @@ import environmentDetector, {
   type RuntimeEnvironment,
   type EnvironmentDetectionResult,
   type EnvironmentConfiguration
-} from '../../lib/services/environment-detector';
+} from '../../src/lib/services/environment-detector';
 
 // Mock file system operations
 jest.mock('fs', () => ({

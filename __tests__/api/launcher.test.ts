@@ -18,17 +18,17 @@ import {
   GET as getInstances, 
   POST as createInstance, 
   DELETE as deleteInstance 
-} from '../../api/launcher/instances/route';
+} from '../../src/app/api/launcher/instances/route';
 import { 
   GET as getInstance, 
   PATCH as updateInstance, 
   POST as sendCommand, 
   DELETE as deleteInstanceById 
-} from '../../api/launcher/instances/[id]/route';
+} from '../../src/app/api/launcher/instances/[id]/route';
 import { 
   POST as sendCommandToInstance,
   GET as getCommandHealth
-} from '../../api/launcher/instances/[id]/commands/route';
+} from '../../src/app/api/launcher/instances/[id]/commands/route';
 import { 
   LauncherConfig, 
   CreateInstanceRequest, 
@@ -37,7 +37,7 @@ import {
   type InstanceInfo,
   type ListInstancesResponse,
   type CreateInstanceResponse
-} from '../../lib/types/launcher';
+} from '../../src/lib/types/launcher';
 
 // Mock modules
 jest.mock('../../lib/database/client', () => ({

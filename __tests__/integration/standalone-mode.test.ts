@@ -10,12 +10,12 @@ import { promises as fs } from 'fs';
 import { existsSync } from 'fs';
 import * as path from 'path';
 import { Server as HttpServer } from 'http';
-import { StandaloneConfigGenerator, generateStandaloneConfig, checkStandaloneSetup } from '../../lib/config/standalone-generator';
-import { detectEnvironment, resetEnvironmentDetection } from '../../lib/services/environment-detector';
-import { MemorySessionCache, getMemoryCache, initializeMemoryCache, shutdownMemoryCache } from '../../lib/cache/memory-cache';
-import { MonitoringWebSocketServer } from '../../lib/websocket/server';
-import { EventParserService } from '../../lib/services/event-parser';
-import { StateDetector } from '../../lib/services/state-detector';
+import { StandaloneConfigGenerator, generateStandaloneConfig, checkStandaloneSetup } from '../../src/lib/config/standalone-generator';
+import { detectEnvironment, resetEnvironmentDetection } from '../../src/lib/services/environment-detector';
+import { MemorySessionCache, getMemoryCache, initializeMemoryCache, shutdownMemoryCache } from '../../src/lib/cache/memory-cache';
+import { MonitoringWebSocketServer } from '../../src/lib/websocket/server';
+import { EventParserService } from '../../src/lib/services/event-parser';
+import { StateDetector } from '../../src/lib/services/state-detector';
 
 describe('Standalone Mode Integration Tests', () => {
   let tempProjectDir: string;

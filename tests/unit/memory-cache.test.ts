@@ -24,7 +24,7 @@ import {
   type SessionCacheEntry,
   type CacheStats,
   type MemoryCacheConfig
-} from '../../lib/cache/memory-cache';
+} from '../../src/lib/cache/memory-cache';
 
 // Mock WebSocket server
 const mockWebSocketServer = {

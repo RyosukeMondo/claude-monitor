@@ -17,8 +17,8 @@ import {
   createEventParser, 
   parseJSONLLine, 
   parseJSONLContent 
-} from '../../lib/services/event-parser';
-import { ConversationEventType } from '../../lib/types/conversation';
+} from '../../src/lib/services/event-parser';
+import { ConversationEventType } from '../../src/lib/types/conversation';
 import { 
   SAMPLE_JSONL_ENTRIES, 
   INVALID_JSONL_ENTRIES, 

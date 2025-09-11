@@ -11,7 +11,7 @@
  * - Statistics tracking
  */
 
-import { JSONLFileSystemMonitor } from '../../lib/services/jsonl-monitor';
+import { JSONLFileSystemMonitor } from '../../src/lib/services/jsonl-monitor';
 import { promises as fs } from 'fs';
 import * as chokidar from 'chokidar';
 import * as path from 'path';

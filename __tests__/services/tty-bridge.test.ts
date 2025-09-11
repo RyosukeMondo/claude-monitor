@@ -22,13 +22,13 @@ import {
   findAvailablePort, 
   TTYBridgeManager, 
   bridgeManager 
-} from '../../lib/services/tty-bridge';
+} from '../../src/lib/services/tty-bridge';
 import { 
   TCPCommand, 
   TCPResponse, 
   BridgeServerInfo, 
   validateTCPCommand 
-} from '../../lib/types/launcher';
+} from '../../src/lib/types/launcher';
 
 // Mock dependencies
 jest.mock('net');
