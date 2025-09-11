@@ -140,7 +140,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 2.1, 2.2, 2.4_
   - _Prompt: Role: QA Engineer with expertise in modern API testing | Task: Create comprehensive API tests for launcher endpoints following requirements 2.1, 2.2, and 2.4, using modern testing patterns | Restrictions: Use contemporary testing frameworks, ensure good coverage, focus on real-world scenarios | Success: All API endpoints thoroughly tested, excellent coverage, tests are maintainable and reliable_
 
-- [ ] 17. Create TTY bridge service tests
+- [x] 17. Create TTY bridge service tests
   - File: __tests__/services/tty-bridge.test.ts
   - Write comprehensive tests for TTY bridge functionality
   - Test command handling, validation, and edge cases
@@ -148,7 +148,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 1.1, 1.2_
   - _Prompt: Role: Systems Testing Specialist with expertise in TTY testing | Task: Create comprehensive TTY bridge tests following requirements 1.1 and 1.2, testing terminal interaction with modern patterns | Restrictions: Use safe testing patterns for TTY, ensure comprehensive coverage, test error scenarios | Success: TTY bridge thoroughly tested, all command scenarios covered, robust error handling verified_
 
-- [ ] 18. Create end-to-end integration tests
+- [x] 18. Create end-to-end integration tests
   - File: e2e/launcher-integration.spec.ts
   - Write comprehensive E2E tests for complete launcher workflow
   - Test Docker environment startup and full user journeys
