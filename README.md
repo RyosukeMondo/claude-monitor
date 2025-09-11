@@ -1,10 +1,33 @@
-# Claude Monitor with Docker Integration
+# Claude Monitor
 
-A comprehensive Claude Code monitoring and management system with integrated Docker deployment and Claude Code launcher capabilities. This system provides web-based management of Claude Code instances, real-time JSONL monitoring, and containerized deployment with automatic setup.
+A comprehensive Claude Code monitoring and management system with flexible deployment options. Run with Docker containers or standalone with just `npm run dev` for simplified development environments. Features web-based management of Claude Code instances, real-time JSONL monitoring, and automatic setup for both containerized and standalone modes.
 
 ## 🚀 Quick Start
 
-### Docker Compose (Recommended)
+### Standalone Mode (Simplest)
+
+**No Docker required** - Perfect for development and testing:
+
+1. **Clone and start:**
+   ```bash
+   git clone <repository-url>
+   cd claude-monitor
+   npm install
+   npm run dev
+   ```
+
+2. **Auto-setup runs automatically:**
+   - SQLite database created and seeded
+   - Configuration generated in `.env.local`
+   - File-based storage with in-memory caching
+
+3. **Access the dashboard:**
+   - Open http://localhost:3000
+   - Start monitoring Claude Code sessions immediately
+
+### Docker Compose (Production)
+
+**Full containerization** with PostgreSQL and Redis:
 
 1. **Clone and start the system:**
    ```bash
@@ -23,21 +46,13 @@ A comprehensive Claude Code monitoring and management system with integrated Doc
    - Configure TCP bridge port (default: 9999)
    - Start monitoring your Claude sessions
 
-### Development Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Set up database
-npm run db:migrate
-npm run db:seed
-
-# Start development server
-npm run dev
-```
-
 ## 📋 Features
+
+### 🚀 Flexible Deployment
+- **Standalone Mode**: Run with just `npm run dev` - no Docker required
+- **Docker Integration**: Full containerization with PostgreSQL and Redis
+- **Auto-Detection**: Automatically configures based on environment
+- **Zero-Config Setup**: Automatic database and configuration generation
 
 ### 🔧 Claude Code Launcher
 - **Native TypeScript Implementation**: Launch Claude Code instances with TCP bridge functionality
@@ -52,6 +67,12 @@ npm run dev
 - **Session Tracking**: Persistent session history and metadata
 - **Multi-Project Support**: Monitor sessions across different project directories
 
+### 💾 Storage Flexibility
+- **SQLite for Development**: File-based database for standalone mode
+- **PostgreSQL for Production**: Scalable database for containerized deployments
+- **In-Memory Caching**: Memory-based sessions for standalone development
+- **Redis Caching**: Distributed caching for production environments
+
 ### 🐳 Docker Integration
 - **Complete Containerization**: Full Docker Compose setup with all dependencies
 - **Automatic Installation**: Claude Code CLI and MCP tools installed automatically
@@ -60,8 +81,9 @@ npm run dev
 - **Production Ready**: Optimized multi-stage builds with security best practices
 
 ### 🔐 Authentication & Setup
+- **Zero-Configuration**: Auto-generates configuration files for standalone mode
 - **First-Time Setup**: Guided authentication flow for containerized environments
-- **Persistent Auth**: Authentication state preserved across container restarts
+- **Persistent Auth**: Authentication state preserved across restarts
 - **Clear Instructions**: Step-by-step setup guidance with troubleshooting
 
 ## 🏗️ Architecture
@@ -85,13 +107,28 @@ npm run dev
 
 ## 🛠️ Configuration
 
+### Standalone Mode Configuration
+
+Standalone mode automatically generates `.env.local` with optimal settings:
+
+```bash
+# Auto-generated configuration for standalone mode
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=file:./prisma/dev.db
+CLAUDE_MONITOR_STANDALONE_MODE=true
+CLAUDE_MONITOR_LOG_LEVEL=DEBUG
+CLAUDE_MONITOR_LOG_CONSOLE=true
+```
+
 ### Environment Variables
 
 #### Core Application
 - `NODE_ENV`: Environment mode (development/production)
-- `DATABASE_URL`: PostgreSQL connection string
+- `DATABASE_URL`: Database connection (SQLite file: or PostgreSQL string)
 - `CLAUDE_MONITOR_LOG_LEVEL`: Logging level (DEBUG/INFO/WARN/ERROR)
 - `CLAUDE_MONITOR_LOG_CONSOLE`: Enable console logging (true/false)
+- `CLAUDE_MONITOR_STANDALONE_MODE`: Enable standalone mode features (true/false)
 
 #### Claude Code Launcher
 - `CLAUDE_TCP_PORT`: Default TCP bridge port (default: 9999)
@@ -99,7 +136,7 @@ npm run dev
 - `CLAUDE_LAUNCHER_ENABLED`: Enable launcher functionality (true/false)
 - `CLAUDE_MAX_INSTANCES`: Maximum concurrent instances (default: 10)
 
-#### Container Runtime
+#### Container Runtime (Docker Mode Only)
 - `TERM`: Terminal type for Claude Code TTY (default: xterm-256color)
 - `DEBIAN_FRONTEND`: Package manager frontend (default: noninteractive)
 
@@ -186,7 +223,58 @@ The system automatically monitors JSONL files in:
 
 ## 🚨 Troubleshooting
 
-### Common Issues
+### Standalone Mode Issues
+
+#### Application Won't Start
+```bash
+# Check Node.js version (requires 18+)
+node --version
+
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+#### Database Errors
+```bash
+# Reset SQLite database
+rm -f prisma/dev.db
+npm run db:migrate
+npm run db:seed
+
+# Check database file permissions
+ls -la prisma/dev.db
+```
+
+#### Configuration Problems
+```bash
+# Remove and regenerate config
+rm -f .env.local
+npm run dev  # Auto-generates new config
+
+# Check configuration status
+npm run config:check
+```
+
+#### Port Already in Use
+```bash
+# Find what's using port 3000
+lsof -i :3000
+
+# Start on different port
+PORT=3001 npm run dev
+```
+
+#### File Permission Issues
+```bash
+# Fix directory permissions
+chmod 755 ~/.claude/projects/
+chmod 755 ./prisma/
+mkdir -p ./logs && chmod 755 ./logs/
+```
+
+### Docker Mode Issues
 
 #### Claude Code Installation Failed
 ```bash
