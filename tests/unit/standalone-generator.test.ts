@@ -44,7 +44,6 @@ jest.mock('../../lib/config/settings', () => ({
 // Mock file system operations
 jest.mock('fs', () => ({
   promises: {
-    ...jest.requireActual('fs').promises,
     writeFile: jest.fn(),
     readFile: jest.fn(),
     mkdir: jest.fn(),
@@ -53,8 +52,8 @@ jest.mock('fs', () => ({
   existsSync: jest.fn(),
 }));
 
-const mockedFs = jest.mocked(fs);
-const mockedExistsSync = jest.mocked(existsSync);
+const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockedExistsSync = existsSync as jest.MockedFunction<typeof existsSync>;
 const { getConfig, ConfigurationError } = jest.requireMock('../../lib/config/settings');
 
 describe('StandaloneConfigGenerator', () => {
