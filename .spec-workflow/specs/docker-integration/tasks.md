@@ -132,7 +132,7 @@ This helps provide better AI agent guidance beyond simple "work on this task" pr
   - _Requirements: 6.1, 6.2, 6.3_
   - _Prompt: Role: DevOps Engineer with expertise in container initialization | Task: Create modern container initialization following requirements 6.1, 6.2, and 6.3, implementing reliable startup sequence for launcher components | Restrictions: Focus on reliability and clear error reporting, use modern shell scripting practices | Success: Container starts reliably with all dependencies validated, clear error messages for any issues_
 
-- [ ] 16. Create comprehensive API tests
+- [x] 16. Create comprehensive API tests
   - File: __tests__/api/launcher.test.ts
   - Write modern integration tests for all launcher API endpoints
   - Test instance lifecycle, error scenarios, and edge cases
