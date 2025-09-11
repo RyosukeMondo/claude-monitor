@@ -498,6 +498,30 @@ function validateRequest(request: NextRequest): { valid: boolean; error?: string
 }
 
 /**
+ * Get friendly route name for better UX context
+ */
+function getRouteDisplayName(pathname: string): string {
+  const routeNames: Record<string, string> = {
+    '/': 'Dashboard',
+    '/dashboard': 'Dashboard',
+    '/performance': 'Performance Monitoring',
+    '/projects': 'Project Management',
+    '/sessions': 'Session Monitoring',
+    '/recovery': 'Recovery Operations',
+    '/settings': 'Settings'
+  };
+  
+  // Handle dynamic routes like /sessions/[id]
+  for (const [route, name] of Object.entries(routeNames)) {
+    if (pathname === route || pathname.startsWith(route + '/')) {
+      return name;
+    }
+  }
+  
+  return 'Application';
+}
+
+/**
  * Check if the request requires authentication
  */
 function requiresAuth(pathname: string): boolean {
@@ -510,8 +534,24 @@ function requiresAuth(pathname: string): boolean {
     return false;
   }
   
-  // Require auth for API routes and dashboard
-  return pathname.startsWith('/api') || pathname === '/' || pathname.startsWith('/dashboard');
+  // Protected application routes - all main UI pages require authentication
+  const protectedRoutes = [
+    '/',
+    '/dashboard',
+    '/performance', 
+    '/projects',
+    '/sessions',
+    '/recovery',
+    '/settings'
+  ];
+  
+  // Check if pathname exactly matches or starts with a protected route
+  const isProtectedRoute = protectedRoutes.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  );
+  
+  // Require auth for protected routes and API routes (except public ones)
+  return isProtectedRoute || pathname.startsWith('/api');
 }
 
 /**
@@ -617,13 +657,36 @@ export async function middleware(request: NextRequest) {
     if (!authResult.valid) {
       if (request.nextUrl.pathname.startsWith('/api')) {
         return new NextResponse(authResult.error || 'Unauthorized', {
-          status: 401
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
       } else {
-        // Redirect to login for web pages
+        // Enhanced redirect logic for better UX with new navigation
         const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
-        return NextResponse.redirect(loginUrl);
+        
+        // Preserve the original path and query parameters for better redirect experience
+        const redirectPath = request.nextUrl.pathname + request.nextUrl.search;
+        loginUrl.searchParams.set('redirect', redirectPath);
+        
+        // Add friendly route name for better UX messaging
+        const routeName = getRouteDisplayName(request.nextUrl.pathname);
+        loginUrl.searchParams.set('route', routeName);
+        
+        // Add helpful context for the UI about why user was redirected
+        if (authResult.error === 'Missing authentication token') {
+          loginUrl.searchParams.set('reason', 'session_required');
+        } else if (authResult.error === 'Invalid token') {
+          loginUrl.searchParams.set('reason', 'session_expired');
+        }
+        
+        const response = NextResponse.redirect(loginUrl);
+        
+        // Clear any existing auth cookies on failed authentication
+        response.cookies.delete('auth-token');
+        
+        return response;
       }
     }
     
