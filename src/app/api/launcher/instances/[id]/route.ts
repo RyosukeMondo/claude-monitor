@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { withPerformanceTracking } from '../../../../lib/services/performance-monitor';
+import { withPerformanceTracking } from 'lib/services/performance-monitor';
 import {
   InstanceInfoSchema,
   TCPCommandSchema,
@@ -21,7 +21,7 @@ import {
   type InstanceInfo,
   type TCPCommand,
   type TCPResponse
-} from '../../../../lib/types/launcher';
+} from 'lib/types/launcher';
 
 // Validation schemas for dynamic route operations
 const InstanceParamsSchema = z.object({

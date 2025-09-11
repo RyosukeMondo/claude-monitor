@@ -12,9 +12,9 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat curl bash
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# Install all dependencies (including dev) for build
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -36,7 +36,6 @@ WORKDIR /tmp
 # Install Claude Code CLI and MCP tools in single layer
 RUN apk add --no-cache curl bash ca-certificates python3 py3-pip git && \
     curl -fsSL https://claude.ai/install.sh | bash && \
-    npm install -g @anthropic-ai/mcp-server-spec-workflow && \
     mkdir -p /opt/claude-tools && \
     apk del curl && \
     rm -rf /var/cache/apk/* /tmp/*
@@ -61,7 +60,7 @@ COPY --from=claude-setup /opt/claude-tools /opt/claude-tools
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache and create directories
-RUN mkdir .next /home/nextjs/.claude/projects && \
+RUN mkdir -p .next /home/nextjs/.claude/projects && \
     chown -R nextjs:nodejs .next /home/nextjs/.claude
 
 # Automatically leverage output traces to reduce image size

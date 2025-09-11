@@ -17,16 +17,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { withPerformanceTracking } from '../../../../../lib/services/performance-monitor';
-import { tcpServerManager } from '../../../../../lib/services/tcp-server';
+import { withPerformanceTracking } from 'lib/services/performance-monitor';
+import { tcpServerManager } from 'lib/services/tcp-server';
 import {
-  TCPCommandSchema,
   TCPCommandTypeSchema,
   type TCPCommand,
   type TCPResponse
-} from '../../../../../lib/types/launcher';
-import { LogHelpers } from '../../../../../lib/utils/logger';
-import { ErrorFactory } from '../../../../../lib/utils/errors';
+} from 'lib/types/launcher';
+import { LogHelpers } from 'lib/utils/logger';
+import { ErrorFactory } from 'lib/utils/errors';
 
 // Security and validation configuration
 const COMMAND_RATE_LIMIT = {
@@ -63,7 +62,11 @@ const CommandRequestSchema = z.object({
     timeout: z.number().int().min(1000).max(30000).default(COMMAND_TIMEOUT),
     priority: z.enum(['low', 'normal', 'high']).default('normal'),
     waitForResponse: z.boolean().default(true)
-  }).optional().default({})
+  }).optional().default(() => ({
+    timeout: COMMAND_TIMEOUT,
+    priority: 'normal' as const,
+    waitForResponse: true,
+  }))
 });
 
 // Command whitelist for security
@@ -254,8 +257,8 @@ async function POST_HANDLER(
   { params }: { params: { id: string } }
 ) {
   const startTime = Date.now();
-  let clientId: string;
-  let instanceId: string;
+  let clientId: string | undefined;
+  let instanceId: string | undefined;
 
   try {
     // Check request size
@@ -406,8 +409,8 @@ async function POST_HANDLER(
     const duration = Date.now() - startTime;
     
     LogHelpers.error('command-api', error as Error, {
-      clientId: clientId!,
-      instanceId: instanceId!,
+      clientId: clientId ?? 'unknown',
+      instanceId: instanceId ?? 'unknown',
       duration
     });
 
@@ -442,7 +445,7 @@ async function POST_HANDLER(
 export const POST = withPerformanceTracking(POST_HANDLER);
 
 // Add health check endpoint for the command API
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   return NextResponse.json({
     success: true,
     service: 'command-forwarding-api',

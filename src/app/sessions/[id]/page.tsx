@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import SessionViewer from '../../../components/dashboard/session-viewer';
-import { ConversationEvent, ConversationSession } from '../../../lib/types/conversation';
+import { ConversationEvent, ConversationSession } from 'lib/types/conversation';
 
 // Mock data service - replace with actual API call
 async function getSessionById(sessionId: string): Promise<{
@@ -60,7 +60,7 @@ async function getSessionById(sessionId: string): Promise<{
         timestamp: new Date(mockSession.startTime.getTime() + 2000),
         sessionId: sessionId,
         role: 'assistant',
-        content: 'I\'ll help you implement a session viewer component with timeline visualization and event filtering.',
+        content: 'I&apost;ll help you implement a session viewer component with timeline visualization and event filtering.',
         metadata: {},
         performance: {
           processingTime: 1200,
@@ -217,8 +217,8 @@ function SessionError({ sessionId }: { sessionId: string }) {
 }
 
 // Main page component
-export default async function SessionPage({ params }: { params: { id: string } }) {
-  const sessionId = params.id;
+export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: sessionId } = await params;
 
   // Validate session ID format
   if (!sessionId || sessionId.length < 10) {
@@ -276,8 +276,8 @@ export async function generateStaticParams() {
 }
 
 // Metadata generation
-export async function generateMetadata({ params }: { params: { id: string } }) {
-  const sessionId = params.id;
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id: sessionId } = await params;
   
   return {
     title: `Session ${sessionId.slice(0, 8)}... - Claude Monitor`,
