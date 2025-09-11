@@ -1,0 +1,12 @@
+{
+  "id": "approval_1757555589138_4k46ankmg",
+  "title": "Requirements: Without Docker Feature",
+  "filePath": ".spec-workflow/specs/without-docker/requirements.md",
+  "type": "document",
+  "status": "approved",
+  "createdAt": "2025-09-11T01:53:09.138Z",
+  "category": "spec",
+  "categoryName": "without-docker",
+  "response": "ダッシュボードから承認",
+  "respondedAt": "2025-09-11T02:18:03.571Z"
+}

@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import '@testing-library/jest-dom';
 
 // Mock file system operations for testing
 jest.mock('fs', () => ({
@@ -44,6 +45,60 @@ jest.mock('pino', () => {
   
   return pinoMock;
 });
+
+// Mock Next.js router
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    refresh: jest.fn(),
+    prefetch: jest.fn(),
+  }),
+  usePathname: () => '/dashboard',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+// Mock Socket.IO client
+jest.mock('socket.io-client', () => ({
+  io: jest.fn(() => ({
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+    disconnect: jest.fn(),
+    connected: true,
+  })),
+}));
+
+// Mock window APIs
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
+// Mock ResizeObserver
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+
+// Mock IntersectionObserver
+global.IntersectionObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
 
 // Increase test timeout for async operations
 jest.setTimeout(10000);
