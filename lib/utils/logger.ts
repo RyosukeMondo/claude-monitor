@@ -7,6 +7,8 @@
 
 import * as pino from 'pino';
 import { Logger } from 'pino';
+import * as path from 'path';
+import * as fs from 'fs';
 import { MonitorError, isMonitorError } from './errors';
 
 export interface LogContext {
@@ -45,6 +47,9 @@ export interface LoggerConfig {
   file?: string;
   maxFileSize?: string;
   maxFiles?: number;
+  standaloneMode?: boolean;
+  logDirectory?: string;
+  enableFileRotation?: boolean;
 }
 
 /**
@@ -61,11 +66,39 @@ export class MonitorLogger {
       pretty: process.env.NODE_ENV === 'development',
       maxFileSize: '100MB',
       maxFiles: 5,
+      standaloneMode: process.env.CLAUDE_MONITOR_MODE === 'standalone',
+      logDirectory: process.env.LOG_DIRECTORY || './logs',
+      enableFileRotation: true,
       ...config
     };
     
+    // Configure debug-level logging for standalone development mode
+    if (this.config.standaloneMode && process.env.NODE_ENV === 'development') {
+      this.config.level = 'debug';
+      this.config.file = this.config.file || path.join(this.config.logDirectory!, 'claude-monitor.log');
+    }
+    
     this.loggers = new Map();
+    this.ensureLogDirectory();
     this.rootLogger = this.createRootLogger();
+  }
+
+  private ensureLogDirectory(): void {
+    if (this.config.file || this.config.standaloneMode) {
+      const logDir = this.config.logDirectory!;
+      try {
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true });
+        }
+      } catch (error) {
+        console.warn(`Failed to create log directory ${logDir}:`, error);
+        // Fallback to current directory
+        this.config.logDirectory = './';
+        if (this.config.file) {
+          this.config.file = path.join('./', path.basename(this.config.file));
+        }
+      }
+    }
   }
 
   private createRootLogger(): Logger {
@@ -94,12 +127,26 @@ export class MonitorLogger {
       destinations.push(pino.destination({ dest: 1 })); // stdout
     }
 
-    // File output
+    // File output with rotation support
     if (this.config.file) {
-      destinations.push(pino.destination({
-        dest: this.config.file,
-        sync: false
-      }));
+      if (this.config.enableFileRotation) {
+        // Use pino.transport for file rotation
+        destinations.push(pino.transport({
+          target: 'pino/file',
+          options: {
+            destination: this.config.file,
+            mkdir: true,
+            maxFileSize: this.config.maxFileSize,
+            maxFiles: this.config.maxFiles
+          }
+        }));
+      } else {
+        // Simple file destination without rotation
+        destinations.push(pino.destination({
+          dest: this.config.file,
+          sync: false
+        }));
+      }
     }
 
     const logger = pino({
@@ -350,9 +397,9 @@ export class MonitorLogger {
     // Update log level for all loggers
     if (newConfig.level) {
       this.rootLogger.level = newConfig.level;
-      for (const logger of this.loggers.values()) {
+      this.loggers.forEach((logger) => {
         logger.level = newConfig.level;
-      }
+      });
     }
     
     this.logSystemEvent('logger', 'config_update', 'Logger configuration updated');
@@ -370,15 +417,38 @@ export class MonitorLogger {
   }
 
   /**
+   * Log current configuration and file locations (useful for standalone mode)
+   */
+  logConfiguration(): void {
+    const configInfo = {
+      mode: this.config.standaloneMode ? 'standalone' : 'standard',
+      level: this.config.level,
+      fileLogging: !!this.config.file,
+      logFile: this.config.file,
+      logDirectory: this.config.logDirectory,
+      fileRotation: this.config.enableFileRotation,
+      maxFileSize: this.config.maxFileSize,
+      maxFiles: this.config.maxFiles,
+      prettyOutput: this.config.pretty
+    };
+
+    this.logSystemEvent('logger', 'configuration', 'Logger configuration loaded', configInfo);
+    
+    if (this.config.standaloneMode) {
+      this.logInfo('logger', `Standalone mode active: debug logging enabled, log file: ${this.config.file || 'none'}`);
+    }
+  }
+
+  /**
    * Close all log streams
    */
   async close(): Promise<void> {
     await this.flush();
     
     // Close all child loggers
-    for (const logger of Array.from(this.loggers.values())) {
+    this.loggers.forEach((logger) => {
       // Close individual loggers if needed
-    }
+    });
     this.loggers.clear();
     
     this.logSystemEvent('logger', 'shutdown', 'Logger system shutting down');
@@ -393,6 +463,7 @@ let globalLogger: MonitorLogger | null = null;
  */
 export function initializeLogger(config?: Partial<LoggerConfig>): MonitorLogger {
   globalLogger = new MonitorLogger(config);
+  globalLogger.logConfiguration();
   return globalLogger;
 }
 
@@ -411,6 +482,21 @@ export function getGlobalLogger(): MonitorLogger {
  */
 export function getLogger(componentName: string): Logger {
   return getGlobalLogger().getLogger(componentName);
+}
+
+/**
+ * Initialize logger specifically for standalone mode
+ */
+export function initializeStandaloneLogger(logDirectory?: string): MonitorLogger {
+  const config: Partial<LoggerConfig> = {
+    standaloneMode: true,
+    level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+    logDirectory: logDirectory || './logs',
+    enableFileRotation: true,
+    file: path.join(logDirectory || './logs', 'claude-monitor.log')
+  };
+  
+  return initializeLogger(config);
 }
 
 /**
