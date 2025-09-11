@@ -12,19 +12,57 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '../../../lib/database/client';
-import { withPerformanceTracking } from '../../../lib/services/performance-monitor';
-import {
-  CreateInstanceRequestSchema,
-  LauncherConfigSchema,
-  InstanceInfoSchema,
-  TCPCommandSchema,
-  type CreateInstanceRequest,
-  type CreateInstanceResponse,
-  type InstanceInfo,
-  type ListInstancesResponse,
-  type TCPCommand
-} from '../../../lib/types/launcher';
+
+// Simplified types for integration (TODO: import from proper type definitions)
+interface InstanceInfo {
+  id: string;
+  config: {
+    projectPath: string;
+    tcpPort: number;
+    displayName?: string;
+    autoRestart: boolean;
+    environment: Record<string, string>;
+    claudeArgs: string[];
+  };
+  processId: number;
+  tcpPort: number;
+  status: 'starting' | 'running' | 'stopping' | 'stopped' | 'error';
+  startTime: Date;
+  lastActivity: Date;
+  sessionIds: string[];
+  restartCount?: number;
+  metadata?: Record<string, any>;
+}
+
+interface ListInstancesResponse {
+  instances: InstanceInfo[];
+  totalCount: number;
+  runningCount: number;
+}
+
+interface CreateInstanceRequest {
+  config: {
+    projectPath: string;
+    tcpPort?: number;
+    displayName?: string;
+    autoRestart?: boolean;
+    environment?: Record<string, string>;
+    claudeArgs?: string[];
+  };
+  startImmediately?: boolean;
+}
+
+interface CreateInstanceResponse {
+  instance: InstanceInfo;
+  bridgeInfo: {
+    port: number;
+    instanceId: string;
+    isListening: boolean;
+    clientCount: number;
+    startTime: Date;
+    errorCount: number;
+  };
+}
 
 // Response caching
 const cache = new Map();
@@ -35,8 +73,16 @@ const InstanceParamsSchema = z.object({
   id: z.string().uuid('Invalid instance ID format')
 });
 
-const SendCommandRequestSchema = z.object({
-  command: TCPCommandSchema.omit({ instanceId: true })
+const CreateInstanceRequestSchema = z.object({
+  config: z.object({
+    projectPath: z.string().min(1),
+    tcpPort: z.number().min(1024).max(65535).optional(),
+    displayName: z.string().optional(),
+    autoRestart: z.boolean().optional(),
+    environment: z.record(z.string()).optional(),
+    claudeArgs: z.array(z.string()).optional()
+  }),
+  startImmediately: z.boolean().optional()
 });
 
 /**
@@ -61,8 +107,6 @@ async function GET_HANDLER(request: NextRequest) {
         });
       }
     }
-
-    const db = prisma;
     
     // Query launcher instances from database
     // Note: In full implementation, this would connect to actual launcher service
@@ -291,7 +335,7 @@ async function DELETE_HANDLER(request: NextRequest) {
   }
 }
 
-// Export handlers with performance tracking and modern error handling
-export const GET = withPerformanceTracking(GET_HANDLER);
-export const POST = withPerformanceTracking(POST_HANDLER);
-export const DELETE = withPerformanceTracking(DELETE_HANDLER);
+// Export handlers for Next.js API routes
+export const GET = GET_HANDLER;
+export const POST = POST_HANDLER;
+export const DELETE = DELETE_HANDLER;
