@@ -43,8 +43,26 @@ const ServerConfigSchema = z.object({
 
 const DatabaseConfigSchema = z.object({
   url: z.string().default('file:./prisma/dev.db'),
+  type: z.enum(['sqlite', 'postgresql']).default('sqlite'),
   maxConnections: z.number().min(1).max(100).default(10),
   connectionTimeout: z.number().min(1000).max(60000).default(5000), // milliseconds
+  sqlitePath: z.string().default('./prisma/dev.db'),
+});
+
+const CacheConfigSchema = z.object({
+  type: z.enum(['memory', 'redis']).default('memory'),
+  redisUrl: z.string().optional(),
+  maxSessions: z.number().min(1).max(1000).default(100),
+  ttl: z.number().min(60).max(86400).default(3600), // seconds
+});
+
+const StandaloneConfigSchema = z.object({
+  mode: z.enum(['standalone', 'docker']).default('standalone'),
+  autoSetup: z.boolean().default(true),
+  developmentMode: z.boolean().default(true),
+  enableDebugLogging: z.boolean().default(true),
+  configDirectory: z.string().default('./.claude-monitor'),
+  dataDirectory: z.string().default('./data'),
 });
 
 const ClaudeConfigSchema = z.object({
@@ -61,6 +79,8 @@ const ConfigSchema = z.object({
   notifications: NotificationsConfigSchema,
   server: ServerConfigSchema,
   database: DatabaseConfigSchema,
+  cache: CacheConfigSchema,
+  standalone: StandaloneConfigSchema,
   claude: ClaudeConfigSchema,
 });
 
@@ -71,6 +91,8 @@ export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
+export type CacheConfig = z.infer<typeof CacheConfigSchema>;
+export type StandaloneConfig = z.infer<typeof StandaloneConfigSchema>;
 export type ClaudeConfig = z.infer<typeof ClaudeConfigSchema>;
 export type AppConfig = z.infer<typeof ConfigSchema>;
 
@@ -112,6 +134,30 @@ class ConfigManager {
     return this.config!;
   }
 
+  private detectMode(): 'standalone' | 'docker' {
+    // Check for Docker environment indicators
+    const dockerIndicators = [
+      process.env.DOCKER_CONTAINER,
+      process.env.KUBERNETES_SERVICE_HOST,
+      process.env.COMPOSE_PROJECT_NAME,
+    ];
+    
+    // Check if we're running in a Docker container
+    const isInDocker = dockerIndicators.some(indicator => indicator !== undefined);
+    
+    // Check for PostgreSQL and Redis URLs which indicate Docker setup
+    const hasPostgresUrl = process.env.DATABASE_URL?.includes('postgresql://');
+    const hasRedisUrl = process.env.REDIS_URL !== undefined;
+    
+    // If we have clear Docker indicators or external services, assume Docker mode
+    if (isInDocker || (hasPostgresUrl && hasRedisUrl)) {
+      return 'docker';
+    }
+    
+    // Default to standalone mode for development environments
+    return 'standalone';
+  }
+
   public loadConfig(): AppConfig {
     // Load configuration from environment variables with defaults
     const rawConfig = {
@@ -145,8 +191,24 @@ class ConfigManager {
       },
       database: {
         url: process.env.DATABASE_URL || 'file:./prisma/dev.db',
+        type: (process.env.CLAUDE_MONITOR_DB_TYPE || 'sqlite') as 'sqlite' | 'postgresql',
         maxConnections: parseNumber(process.env.CLAUDE_MONITOR_DB_MAX_CONNECTIONS, 10),
         connectionTimeout: parseNumber(process.env.CLAUDE_MONITOR_DB_CONNECTION_TIMEOUT, 5000),
+        sqlitePath: process.env.CLAUDE_MONITOR_SQLITE_PATH || './prisma/dev.db',
+      },
+      cache: {
+        type: (process.env.CLAUDE_MONITOR_CACHE_TYPE || 'memory') as 'memory' | 'redis',
+        redisUrl: process.env.REDIS_URL,
+        maxSessions: parseNumber(process.env.CLAUDE_MONITOR_CACHE_MAX_SESSIONS, 100),
+        ttl: parseNumber(process.env.CLAUDE_MONITOR_CACHE_TTL, 3600),
+      },
+      standalone: {
+        mode: (process.env.CLAUDE_MONITOR_MODE || this.detectMode()) as 'standalone' | 'docker',
+        autoSetup: parseBoolean(process.env.CLAUDE_MONITOR_AUTO_SETUP) ?? true,
+        developmentMode: parseBoolean(process.env.CLAUDE_MONITOR_DEV_MODE) ?? (process.env.NODE_ENV === 'development'),
+        enableDebugLogging: parseBoolean(process.env.CLAUDE_MONITOR_DEBUG_LOGGING) ?? (process.env.NODE_ENV === 'development'),
+        configDirectory: process.env.CLAUDE_MONITOR_CONFIG_DIR || './.claude-monitor',
+        dataDirectory: process.env.CLAUDE_MONITOR_DATA_DIR || './data',
       },
       claude: {
         projectsPath: process.env.CLAUDE_MONITOR_PROJECTS_PATH || '~/.claude/projects',
@@ -202,6 +264,10 @@ export const validateConfig = (): string[] => configManager.validateConfig();
 export const isDevelopment = (): boolean => process.env.NODE_ENV === 'development';
 export const isProduction = (): boolean => process.env.NODE_ENV === 'production';
 export const isTest = (): boolean => process.env.NODE_ENV === 'test';
+export const isStandaloneMode = (): boolean => getConfig().standalone.mode === 'standalone';
+export const isDockerMode = (): boolean => getConfig().standalone.mode === 'docker';
+export const shouldUseMemoryCache = (): boolean => getConfig().cache.type === 'memory';
+export const shouldUseSQLite = (): boolean => getConfig().database.type === 'sqlite';
 
 // Configuration constants
 export const DEFAULT_CONFIG_VALUES = {
@@ -224,6 +290,15 @@ export const DEFAULT_CONFIG_VALUES = {
   DATABASE: {
     MAX_CONNECTIONS: 10,
     CONNECTION_TIMEOUT: 5000,
+    SQLITE_PATH: './prisma/dev.db',
+  },
+  CACHE: {
+    MAX_SESSIONS: 100,
+    TTL: 3600,
+  },
+  STANDALONE: {
+    CONFIG_DIRECTORY: './.claude-monitor',
+    DATA_DIRECTORY: './data',
   },
 } as const;
 
